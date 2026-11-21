@@ -1,0 +1,129 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@400;500;600&display=swap");
+
+@import "tailwindcss";
+
+@theme {
+  --color-night: #0b1628;
+  --color-night-light: #1c2c42;
+  --color-gold: #dcc397;
+  --color-moon: #e8f1ff;
+  --color-mist: #a6bcd4;
+  --color-cyan-glow: #75cbe3;
+  --font-sans: "Noto Sans JP", sans-serif;
+  --font-serif: "Noto Serif JP", serif;
+}
+
+:root {
+  font-family:
+    "Noto Sans JP",
+    "Hiragino Kaku Gothic ProN",
+    sans-serif;
+
+  color: #e8f1ff;
+  background: #0b1628;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+@keyframes moon-glow {
+
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes petal-drift {
+  0% {
+    transform: translate3d(-30px, -20px, 0) rotate(0deg);
+    opacity: 0;
+  }
+
+  15% {
+    opacity: 0.65;
+  }
+
+  85% {
+    opacity: 0.65;
+  }
+
+  100% {
+    transform: translate3d(110px, 110vh, 0) rotate(280deg);
+    opacity: 0;
+  }
+}
+
+.moon-glow {
+  animation: moon-glow 12s ease-in-out infinite;
+}
+
+.petal-drift {
+  animation: petal-drift 20s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .moon-glow,
+  .petal-drift {
+    animation: none;
+  }
+}
+
+
+@keyframes login-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.login-appear {
+  animation: login-fade-in 0.9s ease-out both;
+}
+
+.login-card-appear {
+  animation: login-card-in 0.9s ease-out 0.2s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .login-appear,
+  .login-card-appear {
+    animation: none;
+  }
+}
