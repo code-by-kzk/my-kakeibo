@@ -20,8 +20,6 @@ import {
 
 import GlassCard from "../../components/ui/GlassCard";
 
-type Person = "A" | "B";
-
 type Category =
     | "food"
     | "daily"
@@ -30,19 +28,6 @@ type Category =
     | "utilities"
     | "entertainment"
     | "other";
-
-type Expense = {
-    id: string;
-    date: string;
-    amount: number;
-    payer: Person;
-    category: Category;
-    paymentMethod: string;
-    shares: {
-        A: number;
-        B: number;
-    };
-};
 
 const categoryConfig: Record<
     Category,
