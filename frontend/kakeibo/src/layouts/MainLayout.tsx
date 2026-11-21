@@ -4,6 +4,7 @@ import {
     House,
     ReceiptText,
     ChartNoAxesColumn,
+    HandCoins,
     Settings,
 } from "lucide-react";
 
@@ -13,11 +14,8 @@ import Header from "../components/Header/Header";
 const navItems = [
     { to: "/", label: "ホーム", icon: House },
     { to: "/expenses", label: "支出", icon: ReceiptText },
-    {
-        to: "/analytics",
-        label: "集計",
-        icon: ChartNoAxesColumn,
-    },
+    { to: "/settlements", label: "精算", icon: HandCoins },
+    { to: "/analytics", label: "集計", icon: ChartNoAxesColumn },
     { to: "/settings", label: "設定", icon: Settings },
 ];
 
@@ -40,7 +38,7 @@ export default function MainLayout() {
                 aria-label="メインナビゲーション"
                 className="fixed inset-x-0 bottom-0 z-20 border-t border-gold/20 bg-night/90 backdrop-blur-xl"
             >
-                <div className="mx-auto grid max-w-3xl grid-cols-4 pb-[env(safe-area-inset-bottom)]">
+                <div className="mx-auto grid max-w-3xl grid-cols-5 pb-[env(safe-area-inset-bottom)]">
                     {navItems.map(({ to, label, icon: Icon }) => (
                         <NavLink
                             key={to}
