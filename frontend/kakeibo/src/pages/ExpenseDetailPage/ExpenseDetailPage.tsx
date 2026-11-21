@@ -64,55 +64,6 @@ const paymentMethodLabels: Record<string, string> = {
     qr: "QRコード決済",
 };
 
-// API接続前のサンプルデータ
-const sampleExpenses: Expense[] = [
-    {
-        id: "1",
-        date: "2026-11-21",
-        amount: 3480,
-        payer: "A",
-        category: "food",
-        paymentMethod: "credit",
-        shares: { A: 2000, B: 1480 },
-    },
-    {
-        id: "2",
-        date: "2026-11-21",
-        amount: 1250,
-        payer: "B",
-        category: "daily",
-        paymentMethod: "cash",
-        shares: { A: 625, B: 625 },
-    },
-    {
-        id: "3",
-        date: "2026-11-20",
-        amount: 860,
-        payer: "A",
-        category: "transport",
-        paymentMethod: "qr",
-        shares: { A: 430, B: 430 },
-    },
-    {
-        id: "4",
-        date: "2026-11-18",
-        amount: 5600,
-        payer: "B",
-        category: "food",
-        paymentMethod: "credit",
-        shares: { A: 2800, B: 2800 },
-    },
-    {
-        id: "5",
-        date: "2026-10-30",
-        amount: 4200,
-        payer: "A",
-        category: "utilities",
-        paymentMethod: "credit",
-        shares: { A: 2100, B: 2100 },
-    },
-];
-
 function formatYen(value: number): string {
     return new Intl.NumberFormat("ja-JP", {
         style: "currency",
