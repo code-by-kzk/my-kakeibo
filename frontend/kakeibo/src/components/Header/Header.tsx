@@ -10,7 +10,7 @@ export default function Header() {
             {/* 上部の繊細な光 */}
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/50 to-transparent" />
 
-            <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
+            <div className="mx-auto flex h-16 w-full max-w-5xl items-center px-4 sm:px-6">
                 {/* ロゴと家計簿名 */}
                 <div className="flex min-w-0 items-center gap-3">
                     <div className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-gold/25 bg-gradient-to-br from-gold/15 to-cyan-glow/5 shadow-[0_0_20px_rgba(220,195,151,0.08)]">
@@ -30,15 +30,6 @@ export default function Header() {
                             {settings.householdName}
                         </h1>
                     </div>
-                </div>
-
-                {/* アバター（認証実装前はAさんを仮表示） */}
-                <div
-                    className="flex size-10 shrink-0 items-center justify-center rounded-full border border-gold/35 bg-gradient-to-br from-[#283b55] to-[#111d31] text-sm font-medium text-gold shadow-[0_0_16px_rgba(220,195,151,0.08)]"
-                    title={settings.memberNames.A}
-                    aria-label={settings.memberNames.A}
-                >
-                    {Array.from(settings.memberNames.A)[0] ?? "A"}
                 </div>
             </div>
 
