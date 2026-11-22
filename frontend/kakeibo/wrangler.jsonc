@@ -6,6 +6,9 @@
     "observability": {
         "enabled": true
     },
+    "vars": {
+        "RENDER_API_ORIGIN": "https://my-kakeibo-i4z0.onrender.com"
+    },
     "assets": {
         "directory": "./dist",
         "binding": "ASSETS",

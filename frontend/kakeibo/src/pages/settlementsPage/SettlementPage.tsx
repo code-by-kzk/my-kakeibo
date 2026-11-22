@@ -486,7 +486,8 @@ export default function SettlementPage() {
                     onSubmit={handleSubmit}
                     className="space-y-5"
                 >
-                    <div className="space-y-2">
+
+                    <div className="min-w-0 space-y-2">
                         <label
                             htmlFor="settlement-date"
                             className="block text-sm text-mist"
@@ -504,7 +505,7 @@ export default function SettlementPage() {
                                 setSuccess("");
                             }}
                             required
-                            className="w-full rounded-xl border border-gold/20 bg-night/70 px-4 py-3 text-moon outline-none focus:border-gold/70"
+                            className="block w-full min-w-0 max-w-full box-border rounded-xl border border-gold/20 bg-night/70 px-4 py-3 text-moon outline-none focus:border-gold/70"
                         />
                     </div>
 
