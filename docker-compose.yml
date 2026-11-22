@@ -19,7 +19,6 @@ services:
     volumes:
       - ./backend:/app
     env_file:
-      - ./backend/.env
       - ./backend/.env.test
     environment:
       WEBAUTHN_RP_ID: localhost
@@ -32,5 +31,5 @@ services:
     volumes:
       - ./backend/migrations:/migrations:ro
     env_file:
-      - ./backend/.env
+      - ./backend/.env.test
     entrypoint: [ "migrate" ]
