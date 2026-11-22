@@ -88,6 +88,7 @@ function parseAmount(value: string): number | null {
 function ExpenseEditForm({ expense }: { expense: Expense }) {
     const navigate = useNavigate();
     const { updateExpense } = useExpenses();
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [amountInput, setAmountInput] = useState(
         String(expense.amount)
     );
@@ -183,13 +184,15 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
         setDraftShare("");
     }
 
-    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
-        if (!isValid) return;
+        if (!isValid || isSubmitting) return;
+
+        setIsSubmitting(true);
 
         try {
-            const updated = updateExpense(expense.id, {
+            const updated = await updateExpense(expense.id, {
                 amount,
                 date,
                 payer,
@@ -210,6 +213,8 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
         } catch (error) {
             console.error(error);
             window.alert("支出を更新できませんでした");
+        } finally {
+            setIsSubmitting(false);
         }
     }
 
@@ -514,9 +519,12 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
                     </button>
                 </GlassCard>
 
-                <GoldButton type="submit" disabled={!isValid}>
+                <GoldButton
+                    type="submit"
+                    disabled={!isValid || isSubmitting}
+                >
                     <Check size={20} />
-                    変更内容を確認
+                    {isSubmitting ? "更新中..." : "変更内容を保存"}
                 </GoldButton>
 
                 <Link
@@ -525,10 +533,6 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
                 >
                     キャンセル
                 </Link>
-
-                <p className="text-center text-xs text-mist">
-                    現在は画面確認用です。変更内容は保存されません。
-                </p>
             </form>
         </div>
     );
@@ -536,11 +540,43 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
 
 export default function ExpenseEditPage() {
     const { id } = useParams<{ id: string }>();
-    const { getExpenseById } = useExpenses();
+    const {
+        getExpenseById,
+        isLoading,
+        loadError,
+    } = useExpenses();
 
     const expense = id
         ? getExpenseById(id)
         : undefined;
+
+    if (isLoading) {
+        return (
+            <div
+                role="status"
+                className="mx-auto max-w-xl py-12 text-center text-mist"
+            >
+                支出データを読み込み中...
+            </div>
+        );
+    }
+
+    if (loadError) {
+        return (
+            <div className="mx-auto max-w-xl py-12 text-center">
+                <p role="alert" className="text-red-200">
+                    {loadError}
+                </p>
+
+                <Link
+                    to="/expenses"
+                    className="mt-6 inline-block text-gold underline"
+                >
+                    支出一覧に戻る
+                </Link>
+            </div>
+        );
+    }
 
     if (!expense) {
         return (

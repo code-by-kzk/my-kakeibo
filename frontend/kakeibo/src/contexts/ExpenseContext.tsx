@@ -7,29 +7,37 @@ import {
     type ReactNode,
 } from "react";
 
-import { initialExpenses } from "../data/initialExpenses";
 import type {
     Expense,
     ExpenseInput,
 } from "../types/expense";
 
+import {
+    fetchExpenses,
+    createExpense,
+    updateExpense as updateExpenseApi,
+    deleteExpense as deleteExpenseApi,
+} from "../api/expenses";
+
 type ExpenseContextType = {
     expenses: Expense[];
-    addExpense: (input: ExpenseInput) => Expense;
+    isLoading: boolean;
+    loadError: string | null;
+
+    // 支出データの更新番号
+    expenseRevision: number;
+
+    addExpense: (input: ExpenseInput) => Promise<Expense>;
     updateExpense: (
         id: string,
         input: ExpenseInput
-    ) => boolean;
-    deleteExpense: (id: string) => void;
-    getExpenseById: (
-        id: string
-    ) => Expense | undefined;
+    ) => Promise<boolean>;
+    deleteExpense: (id: string) => Promise<void>;
+    getExpenseById: (id: string) => Expense | undefined;
 };
 
 const ExpenseContext =
     createContext<ExpenseContextType | null>(null);
-
-const STORAGE_KEY = "futari-kakeibo-expenses";
 
 function isExpense(value: unknown): value is Expense {
     if (
@@ -93,100 +101,125 @@ function validateInput(input: ExpenseInput): void {
     }
 }
 
-function loadExpenses(): Expense[] {
-    try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-
-        if (saved === null) {
-            return initialExpenses;
-        }
-
-        const parsed: unknown = JSON.parse(saved);
-
-        if (
-            !Array.isArray(parsed) ||
-            !parsed.every(isExpense)
-        ) {
-            throw new Error("保存データの形式が不正です");
-        }
-
-        return parsed;
-    } catch (error) {
-        console.error("支出データの読み込み失敗:", error);
-
-        // 破損した保存データは上書きせず、
-        // この画面表示中のみ空の一覧にする
-        return [];
-    }
-}
-
 export function ExpenseProvider({
     children,
 }: {
     children: ReactNode;
 }) {
-    const [expenses, setExpenses] =
-        useState<Expense[]>(loadExpenses);
+    const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    // 支出の登録・編集・削除が成功した回数
+    const [expenseRevision, setExpenseRevision] = useState(0);
 
     useEffect(() => {
-        try {
-            localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify(expenses)
-            );
-        } catch (error) {
-            console.error("支出データの保存失敗:", error);
-        }
-    }, [expenses]);
+        const controller = new AbortController();
 
-    function addExpense(input: ExpenseInput): Expense {
+        async function loadApiExpenses() {
+            setIsLoading(true);
+            setLoadError(null);
+
+            try {
+                const data = await fetchExpenses(
+                    controller.signal
+                );
+
+                if (controller.signal.aborted) return;
+
+                console.log(
+                    "Go APIから取得した支出一覧:",
+                    data
+                );
+
+                setExpenses(data);
+            } catch (error) {
+                if (controller.signal.aborted) return;
+
+                console.error(
+                    "支出一覧の取得に失敗:",
+                    error
+                );
+
+                setLoadError(
+                    "支出一覧の取得に失敗しました。"
+                );
+            } finally {
+                if (!controller.signal.aborted) {
+                    setIsLoading(false);
+                }
+            }
+        }
+
+        void loadApiExpenses();
+
+        return () => controller.abort();
+    }, []);
+
+    async function addExpense(
+        input: ExpenseInput
+    ): Promise<Expense> {
         validateInput(input);
 
-        const expense: Expense = {
-            ...input,
-            shares: { ...input.shares },
-            id: crypto.randomUUID(),
-        };
+        const expense = await createExpense(input);
 
         setExpenses((current) => [
             expense,
             ...current,
         ]);
 
+        // 登録成功後に更新番号を増やす
+        setExpenseRevision((current) => current + 1);
+
         return expense;
     }
 
-    function updateExpense(
+    async function updateExpense(
         id: string,
         input: ExpenseInput
-    ): boolean {
+    ): Promise<boolean> {
         validateInput(input);
 
-        if (!expenses.some((expense) => expense.id === id)) {
+        if (
+            !expenses.some(
+                (expense) => expense.id === id
+            )
+        ) {
             return false;
         }
+
+        const updatedExpense = await updateExpenseApi(
+            id,
+            input
+        );
 
         setExpenses((current) =>
             current.map((expense) =>
                 expense.id === id
-                    ? {
-                        ...input,
-                        shares: { ...input.shares },
-                        id,
-                    }
+                    ? updatedExpense
                     : expense
             )
         );
 
+        // 編集成功後に更新番号を増やす
+        setExpenseRevision((current) => current + 1);
+
         return true;
     }
 
-    function deleteExpense(id: string): void {
+    async function deleteExpense(
+        id: string
+    ): Promise<void> {
+        await deleteExpenseApi(id);
+
         setExpenses((current) =>
             current.filter(
                 (expense) => expense.id !== id
             )
         );
+
+        // 削除成功後に更新番号を増やす
+        setExpenseRevision((current) => current + 1);
     }
 
     function getExpenseById(
@@ -201,6 +234,9 @@ export function ExpenseProvider({
         <ExpenseContext.Provider
             value={{
                 expenses,
+                isLoading,
+                loadError,
+                expenseRevision,
                 addExpense,
                 updateExpense,
                 deleteExpense,

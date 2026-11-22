@@ -1,4 +1,4 @@
-import { useExpenses } from "../../contexts/ExpenseContext";
+
 import { useMemo, useState } from "react";
 import {
     ChevronLeft,
@@ -8,6 +8,7 @@ import {
     TrendingUp,
     Minus,
 } from "lucide-react";
+
 import {
     Bar,
     BarChart,
@@ -23,25 +24,12 @@ import {
 
 import GlassCard from "../../components/ui/GlassCard";
 
-type Category =
-    | "food"
-    | "daily"
-    | "transport"
-    | "housing"
-    | "utilities"
-    | "entertainment"
-    | "other";
+import { useExpenses } from "../../contexts/ExpenseContext";
+import { useSettings } from "../../contexts/SettingsContext";
 
-type Expense = {
-    id: string;
-    date: string;
-    amount: number;
-    category: Category;
-    shares: {
-        A: number;
-        B: number;
-    };
-};
+import type { Expense } from "../../types/expense";
+
+type Category = Expense["category"];
 
 const categoryConfig: Record<
     Category,
@@ -87,13 +75,21 @@ function sumExpenses(expenses: Expense[]): number {
 }
 
 export default function AnalyticsPage() {
-    const { expenses } = useExpenses();
+    const {
+        expenses,
+        isLoading,
+        loadError,
+    } = useExpenses();
+
+    const { settings } = useSettings();
+
     const [selectedMonth, setSelectedMonth] = useState(
-        () => new Date(
-            new Date().getFullYear(),
-            new Date().getMonth(),
-            1
-        )
+        () =>
+            new Date(
+                new Date().getFullYear(),
+                new Date().getMonth(),
+                1
+            )
     );
 
     const monthKey = getMonthKey(selectedMonth);
@@ -103,6 +99,7 @@ export default function AnalyticsPage() {
         month: "long",
     }).format(selectedMonth);
 
+    // 選択月の支出
     const monthlyExpenses = useMemo(
         () =>
             expenses.filter((expense) =>
@@ -111,8 +108,10 @@ export default function AnalyticsPage() {
         [expenses, monthKey]
     );
 
+    // 月間支出合計
     const totalAmount = sumExpenses(monthlyExpenses);
 
+    // Aさん・Bさんの負担額
     const totalA = monthlyExpenses.reduce(
         (sum, expense) => sum + expense.shares.A,
         0
@@ -150,9 +149,13 @@ export default function AnalyticsPage() {
         )
             .map(([key, config]) => {
                 const amount = monthlyExpenses
-                    .filter((expense) => expense.category === key)
+                    .filter(
+                        (expense) =>
+                            expense.category === key
+                    )
                     .reduce(
-                        (sum, expense) => sum + expense.amount,
+                        (sum, expense) =>
+                            sum + expense.amount,
                         0
                     );
 
@@ -181,16 +184,42 @@ export default function AnalyticsPage() {
 
             const key = getMonthKey(month);
 
-            const monthlyExpenses = expenses.filter(
+            const targetExpenses = expenses.filter(
                 (expense) => expense.date.startsWith(key)
             );
 
             return {
                 month: `${month.getMonth() + 1}月`,
-                amount: sumExpenses(monthlyExpenses),
+                amount: sumExpenses(targetExpenses),
             };
         });
     }, [selectedMonth, expenses]);
+
+    // API読み込み中
+    if (isLoading) {
+        return (
+            <div
+                role="status"
+                className="mx-auto max-w-xl py-12 text-center text-mist"
+            >
+                分析データを読み込み中...
+            </div>
+        );
+    }
+
+    // API取得失敗
+    if (loadError) {
+        return (
+            <div className="mx-auto max-w-xl py-12 text-center">
+                <p
+                    role="alert"
+                    className="text-sm text-red-300"
+                >
+                    {loadError}
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="mx-auto w-full min-w-0 max-w-xl space-y-5 pb-6 text-moon">
@@ -201,7 +230,10 @@ export default function AnalyticsPage() {
                 </p>
 
                 <h1 className="flex items-center gap-2 font-serif text-2xl">
-                    <ChartPie size={24} className="text-gold" />
+                    <ChartPie
+                        size={24}
+                        className="text-gold"
+                    />
                     支出分析
                 </h1>
 
@@ -282,18 +314,20 @@ export default function AnalyticsPage() {
             {/* Aさん・Bさんの負担 */}
             <div className="grid grid-cols-2 gap-3">
                 <GlassCard>
-                    <p className="text-xs text-gold">
-                        Aさんの負担
+                    <p className="truncate text-xs text-gold">
+                        {settings.memberNames.A}の負担
                     </p>
+
                     <p className="mt-3 break-all text-lg font-semibold">
                         {formatYen(totalA)}
                     </p>
                 </GlassCard>
 
                 <GlassCard>
-                    <p className="text-xs text-cyan-glow">
-                        Bさんの負担
+                    <p className="truncate text-xs text-cyan-glow">
+                        {settings.memberNames.B}の負担
                     </p>
+
                     <p className="mt-3 break-all text-lg font-semibold">
                         {formatYen(totalB)}
                     </p>
@@ -339,7 +373,9 @@ export default function AnalyticsPage() {
 
                                     <Tooltip
                                         formatter={(value) =>
-                                            formatYen(Number(value ?? 0))
+                                            formatYen(
+                                                Number(value ?? 0)
+                                            )
                                         }
                                         contentStyle={{
                                             background: "#142238",
@@ -347,7 +383,9 @@ export default function AnalyticsPage() {
                                             borderRadius: 12,
                                             color: "#E8F1FF",
                                         }}
-                                        itemStyle={{ color: "#E8F1FF" }}
+                                        itemStyle={{
+                                            color: "#E8F1FF",
+                                        }}
                                     />
                                 </PieChart>
                             </ResponsiveContainer>
@@ -361,9 +399,11 @@ export default function AnalyticsPage() {
                                             <span
                                                 className="size-2.5 shrink-0 rounded-full"
                                                 style={{
-                                                    backgroundColor: item.color,
+                                                    backgroundColor:
+                                                        item.color,
                                                 }}
                                             />
+
                                             <span className="truncate">
                                                 {item.name}
                                             </span>
@@ -380,7 +420,8 @@ export default function AnalyticsPage() {
                                                 className="h-full rounded-full"
                                                 style={{
                                                     width: `${item.percent}%`,
-                                                    backgroundColor: item.color,
+                                                    backgroundColor:
+                                                        item.color,
                                                 }}
                                             />
                                         </div>
@@ -449,7 +490,9 @@ export default function AnalyticsPage() {
 
                             <Tooltip
                                 formatter={(value) =>
-                                    formatYen(Number(value ?? 0))
+                                    formatYen(
+                                        Number(value ?? 0)
+                                    )
                                 }
                                 contentStyle={{
                                     background: "#142238",
@@ -473,10 +516,6 @@ export default function AnalyticsPage() {
                     </ResponsiveContainer>
                 </div>
             </GlassCard>
-
-            <p className="text-center text-xs text-mist">
-                現在はサンプルデータを使って集計しています。
-            </p>
         </div>
     );
 }

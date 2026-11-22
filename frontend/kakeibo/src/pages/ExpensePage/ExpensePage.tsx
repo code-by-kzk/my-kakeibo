@@ -216,7 +216,7 @@ export default function ExpensePage() {
         100 - currentSharePercentA;
 
     // 登録処理
-    const handleSubmit = (
+    const handleSubmit = async (
         event: React.FormEvent<HTMLFormElement>
     ) => {
         event.preventDefault();
@@ -248,7 +248,7 @@ export default function ExpensePage() {
         setError("");
 
         try {
-            const expense = addExpense({
+            const expense = await addExpense({
                 amount,
                 date,
                 payer,
@@ -268,7 +268,7 @@ export default function ExpensePage() {
             setError(
                 "支出の登録に失敗しました。"
             );
-
+        } finally {
             setIsSubmitting(false);
         }
     };

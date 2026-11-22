@@ -90,7 +90,11 @@ function shiftMonth(date: Date, offset: number): Date {
 }
 
 export default function ExpenseListPage() {
-    const { expenses } = useExpenses();
+    const {
+        expenses,
+        isLoading,
+        loadError,
+    } = useExpenses();
     const [selectedMonth, setSelectedMonth] = useState(
         () => new Date(
             new Date().getFullYear(),
@@ -141,6 +145,28 @@ export default function ExpenseListPage() {
 
         return Array.from(groups.entries());
     }, [monthlyExpenses]);
+
+    if (isLoading) {
+        return (
+            <div
+                role="status"
+                className="mx-auto max-w-xl py-12 text-center text-mist"
+            >
+                支出一覧を読み込み中...
+            </div>
+        );
+    }
+
+    if (loadError) {
+        return (
+            <div
+                role="alert"
+                className="mx-auto max-w-xl py-12 text-center text-red-200"
+            >
+                {loadError}
+            </div>
+        );
+    }
 
     return (
         <div className="mx-auto w-full min-w-0 max-w-xl space-y-6 pb-6 text-moon">

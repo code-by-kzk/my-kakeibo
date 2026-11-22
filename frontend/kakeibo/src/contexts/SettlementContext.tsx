@@ -1,3 +1,10 @@
+
+import {
+    fetchSettlements,
+    createSettlement,
+    deleteSettlement as deleteSettlementApi,
+} from "../api/settlements";
+
 import {
     createContext,
     useContext,
@@ -13,69 +20,61 @@ import type {
 
 type SettlementContextType = {
     settlements: Settlement[];
-    addSettlement: (input: SettlementInput) => Settlement;
-    deleteSettlement: (id: string) => void;
+    isLoading: boolean;
+    loadError: string | null;
+    addSettlement: (input: SettlementInput) => Promise<Settlement>;
+    deleteSettlement: (id: string) => Promise<void>;
 };
-
-const STORAGE_KEY = "futari-kakeibo-settlements";
 
 const SettlementContext =
     createContext<SettlementContextType | null>(null);
-
-function loadSettlements(): Settlement[] {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-
-        if (!stored) return [];
-
-        const parsed: unknown = JSON.parse(stored);
-
-        if (!Array.isArray(parsed)) {
-            throw new Error("Invalid settlement data");
-        }
-
-        return parsed.filter((item): item is Settlement => {
-            if (typeof item !== "object" || item === null) {
-                return false;
-            }
-
-            const value = item as Partial<Settlement>;
-
-            return (
-                typeof value.id === "string" &&
-                typeof value.date === "string" &&
-                (value.from === "A" || value.from === "B") &&
-                (value.to === "A" || value.to === "B") &&
-                value.from !== value.to &&
-                typeof value.amount === "number" &&
-                Number.isSafeInteger(value.amount) &&
-                value.amount > 0
-            );
-        });
-    } catch (error) {
-        console.error("精算履歴の読み込みに失敗しました", error);
-        throw error;
-    }
-}
 
 export function SettlementProvider({
     children,
 }: {
     children: ReactNode;
 }) {
-    const [settlements, setSettlements] =
-        useState<Settlement[]>(loadSettlements);
+    const [settlements, setSettlements] = useState<Settlement[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
-        localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify(settlements),
-        );
-    }, [settlements]);
+        const controller = new AbortController();
 
-    const addSettlement = (
+        async function load() {
+            setIsLoading(true);
+            setLoadError(null);
+
+            try {
+                const data = await fetchSettlements(controller.signal);
+
+                if (!controller.signal.aborted) {
+                    setSettlements(data);
+                }
+            } catch (error) {
+                if (!controller.signal.aborted) {
+                    console.error(
+                        "精算履歴の取得に失敗しました",
+                        error,
+                    );
+
+                    setLoadError("精算履歴を取得できませんでした");
+                }
+            } finally {
+                if (!controller.signal.aborted) {
+                    setIsLoading(false);
+                }
+            }
+        }
+
+        void load();
+
+        return () => controller.abort();
+    }, []);
+
+    const addSettlement = async (
         input: SettlementInput,
-    ): Settlement => {
+    ): Promise<Settlement> => {
         if (
             input.from === input.to ||
             !Number.isSafeInteger(input.amount) ||
@@ -85,17 +84,16 @@ export function SettlementProvider({
             throw new Error("精算内容が正しくありません");
         }
 
-        const settlement: Settlement = {
-            ...input,
-            id: crypto.randomUUID(),
-        };
+        const settlement = await createSettlement(input);
 
         setSettlements((prev) => [...prev, settlement]);
 
         return settlement;
     };
 
-    const deleteSettlement = (id: string) => {
+    const deleteSettlement = async (id: string): Promise<void> => {
+        await deleteSettlementApi(id);
+
         setSettlements((prev) =>
             prev.filter((settlement) => settlement.id !== id),
         );
@@ -105,6 +103,8 @@ export function SettlementProvider({
         <SettlementContext.Provider
             value={{
                 settlements,
+                isLoading,
+                loadError,
                 addSettlement,
                 deleteSettlement,
             }}

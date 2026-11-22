@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     Check,
     Fingerprint,
@@ -15,28 +16,49 @@ import {
 
 import GlassCard from "../../components/ui/GlassCard";
 import GoldButton from "../../components/ui/GoldButton";
+import { useAuth } from "../../contexts/AuthContext";
 import { useSettings } from "../../contexts/SettingsContext";
-import { defaultSettings } from "../../types/settings";
 
 export default function SettingsPage() {
-    const { settings, updateSettings, resetSettings } =
-        useSettings();
+    const navigate = useNavigate();
+    const { logout } = useAuth();
+
+    const {
+        settings,
+        isLoading,
+        loadError,
+        updateSettings,
+        resetSettings,
+    } = useSettings();
 
     // フォームの入力値
     const [householdName, setHouseholdName] = useState(
-        settings.householdName
+        settings.householdName,
     );
 
     const [memberAName, setMemberAName] = useState(
-        settings.memberNames.A
+        settings.memberNames.A,
     );
 
     const [memberBName, setMemberBName] = useState(
-        settings.memberNames.B
+        settings.memberNames.B,
     );
 
     const [defaultShareA, setDefaultShareA] = useState(
-        settings.defaultSharePercentA
+        settings.defaultSharePercentA,
+    );
+
+    // API通信状態
+    const [isSaving, setIsSaving] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+    const [actionError, setActionError] = useState<string | null>(
+        null,
+    );
+
+    const [logoutError, setLogoutError] = useState<string | null>(
+        null,
     );
 
     // 保存完了メッセージ
@@ -64,8 +86,24 @@ export default function SettingsPage() {
         memberBName !== settings.memberNames.B ||
         defaultShareA !== settings.defaultSharePercentA;
 
+    // API取得失敗時や通信中は編集を防止
+    const isBusy =
+        isSaving || isResetting || isLoggingOut;
+
+    const isFormDisabled =
+        isLoading || loadError !== null || isBusy;
+
+    const clearMessages = () => {
+        setSaved(false);
+        setActionError(null);
+    };
+
     // 保存
-    const handleSave = () => {
+    const handleSave = async (): Promise<void> => {
+        if (isFormDisabled || !hasChanges) {
+            return;
+        }
+
         const trimmedHouseholdName = householdName.trim();
         const trimmedMemberAName = memberAName.trim();
         const trimmedMemberBName = memberBName.trim();
@@ -75,7 +113,8 @@ export default function SettingsPage() {
             !trimmedMemberAName ||
             !trimmedMemberBName
         ) {
-            alert("すべての名前を入力してください。");
+            setActionError("すべての名前を入力してください。");
+            setSaved(false);
             return;
         }
 
@@ -84,49 +123,119 @@ export default function SettingsPage() {
             defaultShareA < 0 ||
             defaultShareA > 100
         ) {
-            alert("負担割合は0〜100%で指定してください。");
+            setActionError(
+                "負担割合は0〜100%で指定してください。",
+            );
+            setSaved(false);
             return;
         }
 
-        updateSettings({
-            householdName: trimmedHouseholdName,
-            memberNames: {
-                A: trimmedMemberAName,
-                B: trimmedMemberBName,
-            },
-            defaultSharePercentA: defaultShareA,
-        });
+        if (
+            trimmedHouseholdName.length > 100 ||
+            trimmedMemberAName.length > 50 ||
+            trimmedMemberBName.length > 50
+        ) {
+            setActionError("入力文字数が上限を超えています。");
+            setSaved(false);
+            return;
+        }
 
-        setSaved(true);
+        setIsSaving(true);
+        clearMessages();
+
+        try {
+            await updateSettings({
+                householdName: trimmedHouseholdName,
+                memberNames: {
+                    A: trimmedMemberAName,
+                    B: trimmedMemberBName,
+                },
+                defaultSharePercentA: defaultShareA,
+            });
+
+            setSaved(true);
+        } catch {
+            setActionError(
+                "設定の保存に失敗しました。時間をおいて再度お試しください。",
+            );
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // 保存前の変更を取り消す
     const handleCancelChanges = () => {
+        if (isFormDisabled) {
+            return;
+        }
+
         setHouseholdName(settings.householdName);
         setMemberAName(settings.memberNames.A);
         setMemberBName(settings.memberNames.B);
         setDefaultShareA(settings.defaultSharePercentA);
-        setSaved(false);
+        clearMessages();
     };
 
     // 設定を初期値に戻す
-    const handleReset = () => {
-        resetSettings();
+    const handleReset = async (): Promise<void> => {
+        if (isFormDisabled) {
+            return;
+        }
 
-        setHouseholdName(defaultSettings.householdName);
-        setMemberAName(defaultSettings.memberNames.A);
-        setMemberBName(defaultSettings.memberNames.B);
-        setDefaultShareA(
-            defaultSettings.defaultSharePercentA
-        );
+        setIsResetting(true);
+        clearMessages();
 
-        setShowResetConfirm(false);
-        setSaved(false);
+        try {
+            await resetSettings();
+
+            // フォームの値はContextの更新に追従する
+            setShowResetConfirm(false);
+            setSaved(true);
+        } catch {
+            setActionError(
+                "設定の初期化に失敗しました。再度お試しください。",
+            );
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
+    // ログアウト
+    const handleLogout = async (): Promise<void> => {
+        if (isBusy) {
+            return;
+        }
+
+        setIsLoggingOut(true);
+        setLogoutError(null);
+
+        try {
+            // サーバー側のセッションを無効化し、
+            // AuthContextの認証状態を更新する
+            await logout();
+
+            setShowLogoutConfirm(false);
+
+            // ログイン画面へ遷移
+            navigate("/login", { replace: true });
+        } catch {
+            // ログアウトに失敗した場合は
+            // ダイアログを閉じずにエラーを表示する
+            setLogoutError(
+                "ログアウトに失敗しました。通信状態を確認して再度お試しください。",
+            );
+        } finally {
+            setIsLoggingOut(false);
+        }
     };
 
     const handleShareChange = (value: number) => {
+        if (isFormDisabled) {
+            return;
+        }
+
         setDefaultShareA(value);
-        setSaved(false);
+        clearMessages();
     };
 
     // 入力欄の共通スタイル
@@ -137,7 +246,8 @@ export default function SettingsPage() {
         "placeholder:text-mist/50 " +
         "outline-none transition-colors " +
         "focus:border-gold/60 focus:ring-1 " +
-        "focus:ring-gold/20";
+        "focus:ring-gold/20 " +
+        "disabled:cursor-not-allowed disabled:opacity-50";
 
     return (
         <div className="mx-auto w-full min-w-0 max-w-xl space-y-6 pb-8 text-moon">
@@ -155,6 +265,30 @@ export default function SettingsPage() {
                     ふたりの家計簿を使いやすく整えましょう
                 </p>
             </header>
+
+            {/* 読み込み状態 */}
+            {isLoading && (
+                <div
+                    role="status"
+                    className="rounded-xl border border-gold/20 bg-gold/5 px-4 py-3 text-sm text-mist"
+                >
+                    設定情報を読み込んでいます...
+                </div>
+            )}
+
+            {/* 設定取得エラー */}
+            {loadError && (
+                <div
+                    role="alert"
+                    className="rounded-xl border border-red-300/20 bg-red-300/5 px-4 py-3 text-sm text-red-200"
+                >
+                    <p>{loadError}</p>
+                    <p className="mt-2 text-xs">
+                        設定を変更するには、API接続を確認して
+                        ページを再読み込みしてください。
+                    </p>
+                </div>
+            )}
 
             {/* 家計簿の設定 */}
             <GlassCard>
@@ -184,8 +318,9 @@ export default function SettingsPage() {
                         value={householdName}
                         onChange={(event) => {
                             setHouseholdName(event.target.value);
-                            setSaved(false);
+                            clearMessages();
                         }}
+                        disabled={isFormDisabled}
                         maxLength={50}
                         placeholder="ふたりの家計簿"
                         className={inputClassName}
@@ -224,8 +359,9 @@ export default function SettingsPage() {
                             value={memberAName}
                             onChange={(event) => {
                                 setMemberAName(event.target.value);
-                                setSaved(false);
+                                clearMessages();
                             }}
+                            disabled={isFormDisabled}
                             maxLength={30}
                             placeholder="Aさん"
                             className={inputClassName}
@@ -244,8 +380,9 @@ export default function SettingsPage() {
                             value={memberBName}
                             onChange={(event) => {
                                 setMemberBName(event.target.value);
-                                setSaved(false);
+                                clearMessages();
                             }}
+                            disabled={isFormDisabled}
                             maxLength={30}
                             placeholder="Bさん"
                             className={inputClassName}
@@ -314,13 +451,14 @@ export default function SettingsPage() {
                         max={100}
                         step={5}
                         value={defaultShareA}
+                        disabled={isFormDisabled}
                         onChange={(event) =>
                             handleShareChange(
-                                Number(event.target.value)
+                                Number(event.target.value),
                             )
                         }
                         aria-label="メンバーAのデフォルト負担割合"
-                        className="w-full cursor-pointer accent-[#dcc397]"
+                        className="w-full cursor-pointer accent-[#dcc397] disabled:cursor-not-allowed disabled:opacity-50"
                     />
 
                     <div className="mt-2 flex justify-between text-xs text-mist">
@@ -334,7 +472,8 @@ export default function SettingsPage() {
                 <button
                     type="button"
                     onClick={() => handleShareChange(50)}
-                    className="mt-5 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-gold/20 bg-gold/5 px-4 py-2 text-sm text-gold transition-colors hover:bg-gold/10"
+                    disabled={isFormDisabled}
+                    className="mt-5 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-gold/20 bg-gold/5 px-4 py-2 text-sm text-gold transition-colors hover:bg-gold/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     <RotateCcw size={16} />
                     50 : 50 に戻す
@@ -359,14 +498,23 @@ export default function SettingsPage() {
                         </div>
                     )}
 
+                    {actionError && !showResetConfirm && (
+                        <div
+                            role="alert"
+                            className="rounded-xl border border-red-300/20 bg-red-300/5 px-4 py-3 text-sm text-red-200"
+                        >
+                            {actionError}
+                        </div>
+                    )}
+
                     <GoldButton
                         type="button"
-                        onClick={handleSave}
-                        disabled={!hasChanges}
+                        onClick={() => void handleSave()}
+                        disabled={isFormDisabled || !hasChanges}
                     >
                         <span className="flex items-center justify-center gap-2">
                             <Save size={18} />
-                            設定を保存
+                            {isSaving ? "保存中..." : "設定を保存"}
                         </span>
                     </GoldButton>
 
@@ -374,7 +522,8 @@ export default function SettingsPage() {
                         <button
                             type="button"
                             onClick={handleCancelChanges}
-                            className="min-h-11 w-full rounded-xl border border-gold/20 px-4 py-2 text-sm text-mist transition-colors hover:bg-gold/10 hover:text-moon"
+                            disabled={isFormDisabled}
+                            className="min-h-11 w-full rounded-xl border border-gold/20 px-4 py-2 text-sm text-mist transition-colors hover:bg-gold/10 hover:text-moon disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             変更を取り消す
                         </button>
@@ -408,18 +557,23 @@ export default function SettingsPage() {
 
                     <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium">
-                            パスキー管理
+                            パスキー認証
                         </p>
 
                         <p className="mt-1 text-xs text-mist">
-                            バックエンド連携時に実装予定
+                            パスキーによるログインに対応しています
                         </p>
                     </div>
 
-                    <span className="shrink-0 rounded-full border border-gold/20 px-2 py-1 text-[10px] text-mist">
-                        準備中
+                    <span className="shrink-0 rounded-full border border-gold/20 px-2 py-1 text-[10px] text-gold">
+                        対応済み
                     </span>
                 </div>
+
+                <p className="mt-3 text-xs leading-relaxed text-mist/80">
+                    パスキーの追加・削除などの管理機能は、
+                    今後実装する予定です。
+                </p>
             </GlassCard>
 
             {/* その他 */}
@@ -462,7 +616,7 @@ export default function SettingsPage() {
                     </span>
 
                     <span className="text-sm">
-                        ローカル
+                        Neon PostgreSQL
                     </span>
                 </div>
             </GlassCard>
@@ -471,8 +625,12 @@ export default function SettingsPage() {
             <GlassCard>
                 <button
                     type="button"
-                    onClick={() => setShowResetConfirm(true)}
-                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gold/20 px-4 py-3 text-sm text-mist transition-colors hover:bg-gold/10 hover:text-moon"
+                    onClick={() => {
+                        clearMessages();
+                        setShowResetConfirm(true);
+                    }}
+                    disabled={isFormDisabled}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gold/20 px-4 py-3 text-sm text-mist transition-colors hover:bg-gold/10 hover:text-moon disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     <RotateCcw size={17} />
                     設定を初期値に戻す
@@ -486,8 +644,12 @@ export default function SettingsPage() {
             {/* ログアウト */}
             <button
                 type="button"
-                onClick={() => setShowLogoutConfirm(true)}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-300/5 px-4 py-3 text-sm text-red-200 transition-colors hover:bg-red-300/10"
+                onClick={() => {
+                    setLogoutError(null);
+                    setShowLogoutConfirm(true);
+                }}
+                disabled={isBusy}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-300/5 px-4 py-3 text-sm text-red-200 transition-colors hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
                 <LogOut size={18} />
                 ログアウト
@@ -515,23 +677,37 @@ export default function SettingsPage() {
                             支出データは削除されません。
                         </p>
 
+                        {actionError && (
+                            <div
+                                role="alert"
+                                className="mt-4 rounded-xl border border-red-300/20 bg-red-300/5 px-4 py-3 text-sm text-red-200"
+                            >
+                                {actionError}
+                            </div>
+                        )}
+
                         <div className="mt-6 grid grid-cols-2 gap-3">
                             <button
                                 type="button"
-                                onClick={() =>
-                                    setShowResetConfirm(false)
-                                }
-                                className="min-h-11 rounded-xl border border-gold/20 px-3 text-sm text-mist"
+                                onClick={() => {
+                                    clearMessages();
+                                    setShowResetConfirm(false);
+                                }}
+                                disabled={isResetting}
+                                className="min-h-11 rounded-xl border border-gold/20 px-3 text-sm text-mist disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 キャンセル
                             </button>
 
                             <button
                                 type="button"
-                                onClick={handleReset}
-                                className="min-h-11 rounded-xl bg-gold px-3 text-sm font-semibold text-night"
+                                onClick={() => void handleReset()}
+                                disabled={isResetting}
+                                className="min-h-11 rounded-xl bg-gold px-3 text-sm font-semibold text-night disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                初期化する
+                                {isResetting
+                                    ? "初期化中..."
+                                    : "初期化する"}
                             </button>
                         </div>
                     </div>
@@ -551,24 +727,48 @@ export default function SettingsPage() {
                             id="logout-dialog-title"
                             className="font-serif text-lg"
                         >
-                            ログアウト
+                            ログアウトしますか？
                         </h2>
 
                         <p className="mt-3 text-sm leading-relaxed text-mist">
-                            現在は認証機能の実装前のため、
-                            ログアウト処理は利用できません。
-                            パスキー認証の実装時に対応します。
+                            現在のログインセッションを終了します。
+                            再度利用する際はパスキー認証が必要です。
                         </p>
 
-                        <button
-                            type="button"
-                            onClick={() =>
-                                setShowLogoutConfirm(false)
-                            }
-                            className="mt-6 min-h-11 w-full rounded-xl border border-gold/20 px-4 text-sm text-moon"
-                        >
-                            閉じる
-                        </button>
+                        {logoutError && (
+                            <div
+                                role="alert"
+                                className="mt-4 rounded-xl border border-red-300/20 bg-red-300/5 px-4 py-3 text-sm text-red-200"
+                            >
+                                {logoutError}
+                            </div>
+                        )}
+
+                        <div className="mt-6 grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setLogoutError(null);
+                                    setShowLogoutConfirm(false);
+                                }}
+                                disabled={isLoggingOut}
+                                className="min-h-11 rounded-xl border border-gold/20 px-3 text-sm text-mist transition-colors hover:bg-gold/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                キャンセル
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => void handleLogout()}
+                                disabled={isLoggingOut}
+                                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300/30 bg-red-300/15 px-3 text-sm font-medium text-red-200 transition-colors hover:bg-red-300/25 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <LogOut size={16} />
+                                {isLoggingOut
+                                    ? "処理中..."
+                                    : "ログアウト"}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

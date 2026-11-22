@@ -64,19 +64,74 @@ function formatDate(value: string): string {
 
 export default function ExpenseDetailPage() {
     const { id } = useParams<{ id: string }>();
-    const [showDeleteDialog, setShowDeleteDialog] =
-        useState(false);
-
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState("");
     const navigate = useNavigate();
 
     const {
         getExpenseById,
         deleteExpense,
+        isLoading,
+        loadError,
     } = useExpenses();
 
     const expense = id
         ? getExpenseById(id)
         : undefined;
+
+    async function handleDelete() {
+        if (!expense || isDeleting) return;
+
+        setIsDeleting(true);
+        setDeleteError("");
+
+        try {
+            await deleteExpense(expense.id);
+
+            navigate("/expenses", { replace: true });
+        } catch (error) {
+            console.error("支出削除に失敗:", error);
+            setDeleteError("支出の削除に失敗しました。");
+            setIsDeleting(false);
+        }
+    }
+
+    if (isLoading) {
+        return (
+            <div className="mx-auto w-full max-w-xl text-moon">
+                <GlassCard>
+                    <p
+                        role="status"
+                        className="py-8 text-center text-sm text-mist"
+                    >
+                        支出データを読み込み中...
+                    </p>
+                </GlassCard>
+            </div>
+        );
+    }
+
+    if (loadError) {
+        return (
+            <div className="mx-auto w-full max-w-xl text-moon">
+                <GlassCard>
+                    <div className="py-8 text-center">
+                        <p role="alert" className="text-sm text-red-200">
+                            {loadError}
+                        </p>
+
+                        <Link
+                            to="/expenses"
+                            className="mt-6 inline-block text-gold underline"
+                        >
+                            支出一覧に戻る
+                        </Link>
+                    </div>
+                </GlassCard>
+            </div>
+        );
+    }
 
     if (!expense) {
         return (
@@ -254,10 +309,6 @@ export default function ExpenseDetailPage() {
                 削除する
             </button>
 
-            <p className="text-center text-xs text-mist">
-                現在はサンプルデータを表示しています。
-            </p>
-
             {/* 削除確認ダイアログ */}
             {showDeleteDialog && (
                 <div
@@ -284,31 +335,37 @@ export default function ExpenseDetailPage() {
                         >
                             {formatYen(expense.amount)} の支出を
                             削除しようとしています。
-                            現在はAPI未接続のため、実際の削除はできません。
+                            この操作は取り消せません。
                         </p>
 
                         <div className="mt-6 grid grid-cols-2 gap-3">
                             <button
                                 type="button"
                                 onClick={() => setShowDeleteDialog(false)}
-                                className="min-h-12 rounded-xl border border-white/20 text-moon"
+                                disabled={isDeleting}
+                                className="min-h-12 rounded-xl border border-white/20 text-moon disabled:opacity-50"
                             >
                                 キャンセル
                             </button>
 
                             <button
                                 type="button"
-                                onClick={() => {
-                                    if (!expense) return;
-
-                                    deleteExpense(expense.id);
-                                    navigate("/expenses", { replace: true });
-                                }}
-                                className="min-h-12 rounded-xl bg-red-500/20 text-red-200 hover:bg-red-500/30"
+                                onClick={() => void handleDelete()}
+                                disabled={isDeleting}
+                                className="min-h-12 rounded-xl bg-red-500/20 text-red-200 hover:bg-red-500/30 disabled:opacity-50"
                             >
-                                削除する
+                                {isDeleting ? "削除中..." : "削除する"}
                             </button>
                         </div>
+
+                        {deleteError && (
+                            <p
+                                role="alert"
+                                className="mt-4 text-sm text-red-200"
+                            >
+                                {deleteError}
+                            </p>
+                        )}
                     </div>
                 </div>
             )}

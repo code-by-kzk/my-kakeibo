@@ -12,70 +12,21 @@ import {
     type HouseholdSettings,
 } from "../types/settings";
 
+import {
+    apiGet,
+    apiPutNoContent,
+} from "../api/client";
+
 type SettingsContextValue = {
     settings: HouseholdSettings;
-    updateSettings: (next: HouseholdSettings) => void;
-    resetSettings: () => void;
+    isLoading: boolean;
+    loadError: string | null;
+    updateSettings: (next: HouseholdSettings) => Promise<void>;
+    resetSettings: () => Promise<void>;
 };
-
-const STORAGE_KEY = "futari-kakeibo-settings";
 
 const SettingsContext =
     createContext<SettingsContextValue | null>(null);
-
-function loadSettings(): HouseholdSettings {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-
-        if (!stored) {
-            return defaultSettings;
-        }
-
-        const parsed: unknown = JSON.parse(stored);
-
-        if (
-            typeof parsed !== "object" ||
-            parsed === null
-        ) {
-            return defaultSettings;
-        }
-
-        const value = parsed as Partial<HouseholdSettings>;
-
-        const names = value.memberNames;
-
-        return {
-            householdName:
-                typeof value.householdName === "string" &&
-                    value.householdName.trim()
-                    ? value.householdName
-                    : defaultSettings.householdName,
-
-            memberNames: {
-                A:
-                    typeof names?.A === "string" &&
-                        names.A.trim()
-                        ? names.A
-                        : defaultSettings.memberNames.A,
-                B:
-                    typeof names?.B === "string" &&
-                        names.B.trim()
-                        ? names.B
-                        : defaultSettings.memberNames.B,
-            },
-
-            defaultSharePercentA:
-                typeof value.defaultSharePercentA === "number" &&
-                    Number.isFinite(value.defaultSharePercentA) &&
-                    value.defaultSharePercentA >= 0 &&
-                    value.defaultSharePercentA <= 100
-                    ? value.defaultSharePercentA
-                    : defaultSettings.defaultSharePercentA,
-        };
-    } catch {
-        return defaultSettings;
-    }
-}
 
 export function SettingsProvider({
     children,
@@ -83,27 +34,71 @@ export function SettingsProvider({
     children: ReactNode;
 }) {
     const [settings, setSettings] =
-        useState<HouseholdSettings>(loadSettings);
+        useState<HouseholdSettings>(defaultSettings);
+
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] =
+        useState<string | null>(null);
 
     useEffect(() => {
-        localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify(settings)
-        );
-    }, [settings]);
+        const controller = new AbortController();
 
-    const updateSettings = (next: HouseholdSettings) => {
+        const loadSettings = async () => {
+            try {
+                setIsLoading(true);
+                setLoadError(null);
+
+                const data = await apiGet<HouseholdSettings>(
+                    "/settings",
+                    controller.signal
+                );
+
+                if (!controller.signal.aborted) {
+                    setSettings(data);
+                }
+            } catch {
+                if (!controller.signal.aborted) {
+                    setLoadError(
+                        "設定情報の取得に失敗しました"
+                    );
+                }
+            } finally {
+                if (!controller.signal.aborted) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        void loadSettings();
+
+        return () => {
+            controller.abort();
+        };
+    }, []);
+
+    const updateSettings = async (
+        next: HouseholdSettings
+    ): Promise<void> => {
+        await apiPutNoContent<HouseholdSettings>(
+            "/settings",
+            next
+        );
+
+        // API更新成功後に画面へ反映する
         setSettings(next);
+        setLoadError(null);
     };
 
-    const resetSettings = () => {
-        setSettings(defaultSettings);
+    const resetSettings = async (): Promise<void> => {
+        await updateSettings(defaultSettings);
     };
 
     return (
         <SettingsContext.Provider
             value={{
                 settings,
+                isLoading,
+                loadError,
                 updateSettings,
                 resetSettings,
             }}
