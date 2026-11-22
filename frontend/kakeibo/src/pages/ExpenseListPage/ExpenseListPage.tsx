@@ -1,4 +1,6 @@
+
 import { useExpenses } from "../../contexts/ExpenseContext";
+import { useSettings } from "../../contexts/SettingsContext";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -95,6 +97,10 @@ export default function ExpenseListPage() {
         isLoading,
         loadError,
     } = useExpenses();
+
+    const { settings } = useSettings();
+    const memberNames = settings.memberNames;
+
     const [selectedMonth, setSelectedMonth] = useState(
         () => new Date(
             new Date().getFullYear(),
@@ -236,7 +242,7 @@ export default function ExpenseListPage() {
                 <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="min-w-0 rounded-xl bg-gold/10 p-3">
                         <p className="text-xs text-gold">
-                            Aさんの負担
+                            {memberNames.A}の負担
                         </p>
                         <p className="mt-2 break-all text-base font-semibold">
                             {formatYen(totals.A)}
@@ -245,7 +251,7 @@ export default function ExpenseListPage() {
 
                     <div className="min-w-0 rounded-xl bg-cyan-glow/10 p-3">
                         <p className="text-xs text-cyan-glow">
-                            Bさんの負担
+                            {memberNames.B}の負担
                         </p>
                         <p className="mt-2 break-all text-base font-semibold">
                             {formatYen(totals.B)}
@@ -282,7 +288,7 @@ export default function ExpenseListPage() {
 
                             {items.map((expense) => {
                                 const category =
-                                    categoryConfig[expense.category];
+                                    categoryConfig[expense.category as Category];
 
                                 const Icon = category.icon;
 
@@ -290,8 +296,9 @@ export default function ExpenseListPage() {
                                     <Link
                                         key={expense.id}
                                         to={`/expenses/${expense.id}`}
-                                        className="block rounded-2xl transition-transform active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold">
-                                        <GlassCard key={expense.id}>
+                                        className="block rounded-2xl transition-transform active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+                                    >
+                                        <GlassCard>
                                             <div className="flex min-w-0 items-center gap-3">
                                                 {/* カテゴリアイコン */}
                                                 <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold">
@@ -305,7 +312,7 @@ export default function ExpenseListPage() {
                                                     </p>
 
                                                     <p className="mt-1 text-xs text-mist">
-                                                        支払者：{expense.payer}さん
+                                                        支払者：{memberNames[expense.payer]}
                                                     </p>
                                                 </div>
 
@@ -319,7 +326,7 @@ export default function ExpenseListPage() {
                                             <div className="mt-4 grid grid-cols-2 gap-2 border-t border-gold/15 pt-3">
                                                 <div className="min-w-0">
                                                     <p className="text-xs text-mist">
-                                                        Aさんの負担
+                                                        {memberNames.A}の負担
                                                     </p>
                                                     <p className="mt-1 break-all text-sm font-medium text-gold">
                                                         {formatYen(expense.shares.A)}
@@ -328,7 +335,7 @@ export default function ExpenseListPage() {
 
                                                 <div className="min-w-0 text-right">
                                                     <p className="text-xs text-mist">
-                                                        Bさんの負担
+                                                        {memberNames.B}の負担
                                                     </p>
                                                     <p className="mt-1 break-all text-sm font-medium text-cyan-glow">
                                                         {formatYen(expense.shares.B)}

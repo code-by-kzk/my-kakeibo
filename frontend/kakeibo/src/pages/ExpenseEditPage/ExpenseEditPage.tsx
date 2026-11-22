@@ -1,5 +1,7 @@
+
 import { useNavigate } from "react-router-dom";
 import { useExpenses } from "../../contexts/ExpenseContext";
+import { useSettings } from "../../contexts/SettingsContext";
 import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -88,6 +90,9 @@ function parseAmount(value: string): number | null {
 function ExpenseEditForm({ expense }: { expense: Expense }) {
     const navigate = useNavigate();
     const { updateExpense } = useExpenses();
+    const { settings } = useSettings();
+    const memberNames = settings.memberNames;
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [amountInput, setAmountInput] = useState(
         String(expense.amount)
@@ -315,7 +320,7 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
                                                 : "border-white/15 bg-night/40 text-mist",
                                         ].join(" ")}
                                     >
-                                        {person}さん
+                                        {memberNames[person]}
                                     </button>
                                 ))}
                             </div>
@@ -393,7 +398,7 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
                                 htmlFor="edit-share-a"
                                 className="mb-2 block text-sm text-gold"
                             >
-                                Aさんの負担額
+                                {memberNames.A}の負担額
                             </label>
 
                             <input
@@ -428,7 +433,7 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
                                 htmlFor="edit-share-b"
                                 className="mb-2 block text-sm text-cyan-glow"
                             >
-                                Bさんの負担額
+                                {memberNames.B}の負担額
                             </label>
 
                             <input
@@ -460,8 +465,12 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
                     </div>
 
                     <div className="mt-6 flex justify-between text-sm">
-                        <span>Aさん {aPercent.toFixed(1)}%</span>
-                        <span>Bさん {bPercent.toFixed(1)}%</span>
+                        <span>
+                            {memberNames.A} {aPercent.toFixed(1)}%
+                        </span>
+                        <span>
+                            {memberNames.B} {bPercent.toFixed(1)}%
+                        </span>
                     </div>
 
                     <div
@@ -482,7 +491,7 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
                         step="1"
                         value={aShare}
                         disabled={amount === 0 || editingShare !== null}
-                        aria-label="Aさんの負担額を調整"
+                        aria-label={`${memberNames.A}の負担額を調整`}
                         onChange={(e) =>
                             changeAShare(Number(e.target.value))
                         }
@@ -492,7 +501,7 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
                     <div className="mt-5 grid grid-cols-2 gap-3">
                         <div className="min-w-0 rounded-xl bg-gold/10 p-3">
                             <p className="text-xs text-gold">
-                                Aさんの負担
+                                {memberNames.A}の負担
                             </p>
                             <p className="mt-2 break-all text-lg font-semibold">
                                 {formatYen(aShare)}
@@ -501,7 +510,7 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
 
                         <div className="min-w-0 rounded-xl bg-cyan-glow/10 p-3">
                             <p className="text-xs text-cyan-glow">
-                                Bさんの負担
+                                {memberNames.B}の負担
                             </p>
                             <p className="mt-2 break-all text-lg font-semibold">
                                 {formatYen(bShare)}
@@ -586,9 +595,11 @@ export default function ExpenseEditPage() {
                         <h1 className="font-serif text-xl">
                             支出が見つかりません
                         </h1>
+
                         <p className="mt-3 text-sm text-mist">
                             指定された支出は存在しません。
                         </p>
+
                         <Link
                             to="/expenses"
                             className="mt-6 inline-block text-gold underline"

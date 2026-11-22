@@ -1,5 +1,7 @@
+
 import { useNavigate } from "react-router-dom";
 import { useExpenses } from "../../contexts/ExpenseContext";
+import { useSettings } from "../../contexts/SettingsContext";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -68,6 +70,9 @@ export default function ExpenseDetailPage() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState("");
     const navigate = useNavigate();
+
+    const { settings } = useSettings();
+    const memberNames = settings.memberNames;
 
     const {
         getExpenseById,
@@ -225,7 +230,7 @@ export default function ExpenseDetailPage() {
                         </span>
 
                         <span className="text-sm">
-                            {expense.payer}さん
+                            {memberNames[expense.payer]}
                         </span>
                     </div>
 
@@ -263,7 +268,7 @@ export default function ExpenseDetailPage() {
                 <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="min-w-0 rounded-xl bg-gold/10 p-3">
                         <p className="text-xs text-mist">
-                            Aさん {aPercent.toFixed(1)}%
+                            {memberNames.A} {aPercent.toFixed(1)}%
                         </p>
 
                         <p className="mt-2 break-all text-lg font-semibold text-gold">
@@ -273,7 +278,7 @@ export default function ExpenseDetailPage() {
 
                     <div className="min-w-0 rounded-xl bg-cyan-glow/10 p-3">
                         <p className="text-xs text-mist">
-                            Bさん {bPercent.toFixed(1)}%
+                            {memberNames.B} {bPercent.toFixed(1)}%
                         </p>
 
                         <p className="mt-2 break-all text-lg font-semibold text-cyan-glow">
