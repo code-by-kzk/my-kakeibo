@@ -367,7 +367,7 @@ export default function SettlementPage() {
     }
 
     return (
-        <div className="mx-auto max-w-2xl space-y-6 pb-8">
+        <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6 overflow-x-hidden pb-8">
             {/* タイトル */}
             <div className="space-y-2 text-center">
                 <div className="flex items-center justify-center gap-2 text-gold">
@@ -477,14 +477,14 @@ export default function SettlementPage() {
             </section>
 
             {/* 精算登録 */}
-            <section className="rounded-2xl border border-gold/20 bg-night-light/70 p-5 backdrop-blur-xl">
+            <section className="min-w-0 rounded-2xl border border-gold/20 bg-night-light/70 p-4 backdrop-blur-xl sm:p-5">
                 <h3 className="mb-5 font-serif text-lg text-moon">
                     精算を記録する
                 </h3>
 
                 <form
                     onSubmit={handleSubmit}
-                    className="space-y-5"
+                    className="min-w-0 space-y-5"
                 >
 
                     <div className="min-w-0 space-y-2">
@@ -505,7 +505,7 @@ export default function SettlementPage() {
                                 setSuccess("");
                             }}
                             required
-                            className="block w-full min-w-0 max-w-full box-border rounded-xl border border-gold/20 bg-night/70 px-4 py-3 text-moon outline-none focus:border-gold/70"
+                            className="block box-border w-full min-w-0 max-w-full appearance-none rounded-xl border border-gold/20 bg-night/70 px-3 py-3 text-sm text-moon outline-none focus:border-gold/70 sm:px-4"
                         />
                     </div>
 
