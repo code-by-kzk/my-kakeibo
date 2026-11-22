@@ -49,13 +49,6 @@ function formatDate(date: Date): string {
     return `${year}-${month}-${day}`;
 }
 
-function getMonthKey(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-
-    return `${year}-${month}`;
-}
-
 function getMonthRange(
     year: number,
     monthIndex: number
@@ -393,8 +386,8 @@ export default function HomePage() {
                                     setPeriod(option.value)
                                 }
                                 className={`rounded-xl border px-3 py-3 text-sm transition ${isSelected
-                                        ? "border-gold/70 bg-gold/15 text-gold"
-                                        : "border-white/10 bg-night/40 text-mist hover:border-gold/30 hover:text-moon"
+                                    ? "border-gold/70 bg-gold/15 text-gold"
+                                    : "border-white/10 bg-night/40 text-mist hover:border-gold/30 hover:text-moon"
                                     }`}
                             >
                                 {option.label}
@@ -564,10 +557,10 @@ export default function HomePage() {
                         ) : (
                             <p
                                 className={`text-sm ${monthComparison > 0
-                                        ? "text-red-300"
-                                        : monthComparison < 0
-                                            ? "text-cyan-glow"
-                                            : "text-mist"
+                                    ? "text-red-300"
+                                    : monthComparison < 0
+                                        ? "text-cyan-glow"
+                                        : "text-mist"
                                     }`}
                             >
                                 前月比{" "}
