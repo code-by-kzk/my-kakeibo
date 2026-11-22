@@ -23,10 +23,7 @@ type ExpenseContextType = {
     expenses: Expense[];
     isLoading: boolean;
     loadError: string | null;
-
-    // 支出データの更新番号
     expenseRevision: number;
-
     addExpense: (input: ExpenseInput) => Promise<Expense>;
     updateExpense: (
         id: string,
@@ -59,16 +56,6 @@ function isExpense(value: unknown): value is Expense {
 
     const split = shares as Record<string, unknown>;
 
-    const categories = [
-        "food",
-        "daily",
-        "transport",
-        "housing",
-        "utilities",
-        "entertainment",
-        "other",
-    ];
-
     const methods = [
         "cash",
         "credit",
@@ -85,7 +72,9 @@ function isExpense(value: unknown): value is Expense {
         (item.amount as number) > 0 &&
         (item.payer === "A" || item.payer === "B") &&
         methods.includes(String(item.paymentMethod)) &&
-        categories.includes(String(item.category)) &&
+        typeof item.category === "string" &&
+        item.category.trim().length > 0 &&
+        item.category.length <= 30 &&
         Number.isSafeInteger(split.A) &&
         Number.isSafeInteger(split.B) &&
         (split.A as number) >= 0 &&
@@ -110,7 +99,6 @@ export function ExpenseProvider({
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
 
-    // 支出の登録・編集・削除が成功した回数
     const [expenseRevision, setExpenseRevision] = useState(0);
 
     useEffect(() => {
@@ -168,7 +156,6 @@ export function ExpenseProvider({
             ...current,
         ]);
 
-        // 登録成功後に更新番号を増やす
         setExpenseRevision((current) => current + 1);
 
         return expense;
@@ -201,7 +188,6 @@ export function ExpenseProvider({
             )
         );
 
-        // 編集成功後に更新番号を増やす
         setExpenseRevision((current) => current + 1);
 
         return true;
@@ -218,7 +204,6 @@ export function ExpenseProvider({
             )
         );
 
-        // 削除成功後に更新番号を増やす
         setExpenseRevision((current) => current + 1);
     }
 

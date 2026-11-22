@@ -10,30 +10,9 @@ import { Link } from "react-router-dom";
 import GlassCard from "../../components/ui/GlassCard";
 import GoldButton from "../../components/ui/GoldButton";
 
+import { useCategories } from "../../contexts/CategoryContext";
 import { useExpenses } from "../../contexts/ExpenseContext";
 import { useSettings } from "../../contexts/SettingsContext";
-
-import type { Expense } from "../../types/expense";
-
-const categoryLabels: Record<Expense["category"], string> = {
-    food: "食費",
-    daily: "日用品",
-    transport: "交通",
-    housing: "住居",
-    utilities: "水道・光熱費",
-    entertainment: "娯楽",
-    other: "その他",
-};
-
-const categoryOrder: Expense["category"][] = [
-    "food",
-    "daily",
-    "transport",
-    "housing",
-    "utilities",
-    "entertainment",
-    "other",
-];
 
 function formatYen(amount: number): string {
     return `¥${amount.toLocaleString("ja-JP")}`;
@@ -63,6 +42,7 @@ export default function HomePage() {
         loadError,
     } = useExpenses();
 
+    const { getCategoryName } = useCategories();
     const { settings } = useSettings();
 
     const today = new Date();
@@ -128,12 +108,9 @@ export default function HomePage() {
     }, [currentMonthTotal, previousMonthTotal]);
 
     // カテゴリ別支出
+    // 固定カテゴリではなく、実際の支出データから集計する
     const categoryTotals = useMemo(() => {
-        const totals = new Map<Expense["category"], number>();
-
-        for (const category of categoryOrder) {
-            totals.set(category, 0);
-        }
+        const totals = new Map<string, number>();
 
         for (const expense of currentMonthExpenses) {
             const current = totals.get(expense.category) ?? 0;
@@ -144,15 +121,15 @@ export default function HomePage() {
             );
         }
 
-        return categoryOrder
-            .map((category) => ({
+        return Array.from(totals.entries())
+            .map(([category, amount]) => ({
                 category,
-                name: categoryLabels[category],
-                amount: totals.get(category) ?? 0,
+                name: getCategoryName(category),
+                amount,
             }))
             .filter((item) => item.amount > 0)
             .sort((a, b) => b.amount - a.amount);
-    }, [currentMonthExpenses]);
+    }, [currentMonthExpenses, getCategoryName]);
 
     // 最近の支出（全期間から直近5件）
     const recentExpenses = useMemo(() => {
@@ -320,7 +297,7 @@ export default function HomePage() {
                                     </p>
 
                                     <p className="text-sm text-moon">
-                                        {categoryLabels[expense.category]}
+                                        {getCategoryName(expense.category)}
                                     </p>
 
                                     <p className="truncate text-xs text-mist">

@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -33,11 +34,10 @@ func (e Expense) Validate() error {
 		return errors.New("支払い方法が不正です")
 	}
 
-	switch e.Category {
-	case CategoryFood, CategoryDaily, CategoryTransport,
-		CategoryHousing, CategoryUtilities,
-		CategoryEntertainment, CategoryOther:
-	default:
+	categoryID := string(e.Category)
+
+	if strings.TrimSpace(categoryID) == "" ||
+		len(categoryID) > 30 {
 		return errors.New("カテゴリが不正です")
 	}
 

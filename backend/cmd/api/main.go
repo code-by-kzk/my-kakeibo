@@ -48,6 +48,19 @@ func main() {
 		handler.NewExpenseHandler(expenseService)
 
 	// ========================================
+	// カテゴリ管理
+	// ========================================
+
+	categoryRepository :=
+		repository.NewPostgresCategoryRepository(db)
+
+	categoryService :=
+		service.NewCategoryService(categoryRepository)
+
+	categoryHandler :=
+		handler.NewCategoryHandler(categoryService)
+
+	// ========================================
 	// 精算管理
 	// ========================================
 
@@ -168,15 +181,11 @@ func main() {
 	// レート制限
 	// ========================================
 
-	// ログインAPI：
-	// 開始・完了の合計で1分間10回
 	loginRateLimiter := handler.NewRateLimiter(
 		10,
 		time.Minute,
 	)
 
-	// 初期登録API：
-	// 開始・完了の合計で1分間5回
 	registrationRateLimiter := handler.NewRateLimiter(
 		5,
 		time.Minute,
@@ -188,7 +197,6 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// ヘルスチェック
 	mux.HandleFunc(
 		"GET /health",
 		handler.Health,
@@ -198,7 +206,6 @@ func main() {
 	// パスキー初期登録API
 	// ========================================
 
-	// 初期登録：開始
 	mux.HandleFunc(
 		"POST /api/auth/passkey/register/begin",
 		registrationRateLimiter.Middleware(
@@ -206,7 +213,6 @@ func main() {
 		),
 	)
 
-	// 初期登録：完了
 	mux.HandleFunc(
 		"POST /api/auth/passkey/register/finish",
 		registrationRateLimiter.Middleware(
@@ -218,7 +224,6 @@ func main() {
 	// パスキーログインAPI
 	// ========================================
 
-	// ログイン：開始
 	mux.HandleFunc(
 		"POST /api/auth/passkey/login/begin",
 		loginRateLimiter.Middleware(
@@ -226,7 +231,6 @@ func main() {
 		),
 	)
 
-	// ログイン：完了
 	mux.HandleFunc(
 		"POST /api/auth/passkey/login/finish",
 		loginRateLimiter.Middleware(
@@ -302,6 +306,30 @@ func main() {
 	)
 
 	// ========================================
+	// カテゴリ管理API
+	// ========================================
+
+	protectedMux.HandleFunc(
+		"GET /api/categories",
+		categoryHandler.FindAll,
+	)
+
+	protectedMux.HandleFunc(
+		"POST /api/categories",
+		categoryHandler.Create,
+	)
+
+	protectedMux.HandleFunc(
+		"PUT /api/categories/{id}",
+		categoryHandler.Update,
+	)
+
+	protectedMux.HandleFunc(
+		"DELETE /api/categories/{id}",
+		categoryHandler.Delete,
+	)
+
+	// ========================================
 	// 精算管理API
 	// ========================================
 
@@ -352,7 +380,6 @@ func main() {
 		protectedMux,
 	)
 
-	// ログイン状態確認
 	mux.Handle(
 		"/api/auth/me",
 		protectedHandler,
@@ -366,6 +393,17 @@ func main() {
 
 	mux.Handle(
 		"/api/expenses/",
+		protectedHandler,
+	)
+
+	// カテゴリ管理
+	mux.Handle(
+		"/api/categories",
+		protectedHandler,
+	)
+
+	mux.Handle(
+		"/api/categories/",
 		protectedHandler,
 	)
 

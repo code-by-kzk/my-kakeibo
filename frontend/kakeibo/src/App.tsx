@@ -16,6 +16,7 @@ import SettlementPage from "./pages/settlementsPage/SettlementPage";
 
 import { AuthProvider } from "./contexts/AuthContext";
 import { ExpenseProvider } from "./contexts/ExpenseContext";
+import { CategoryProvider } from "./contexts/CategoryContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { SettlementProvider } from "./contexts/SettlementContext";
 
@@ -24,11 +25,13 @@ import ProtectedRoute from "./components/ProtectedRoute";
 function AppProviders() {
   return (
     <SettingsProvider>
-      <ExpenseProvider>
-        <SettlementProvider>
-          <Outlet />
-        </SettlementProvider>
-      </ExpenseProvider>
+      <CategoryProvider>
+        <ExpenseProvider>
+          <SettlementProvider>
+            <Outlet />
+          </SettlementProvider>
+        </ExpenseProvider>
+      </CategoryProvider>
     </SettingsProvider>
   );
 }
@@ -38,7 +41,10 @@ export default function App() {
     <AuthProvider>
       <Routes>
         {/* 認証不要 */}
-        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/login"
+          element={<LoginPage />}
+        />
         <Route
           path="/passkey-setup"
           element={<PasskeySetupPage />}
@@ -48,7 +54,10 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppProviders />}>
             <Route element={<MainLayout />}>
-              <Route index element={<HomePage />} />
+              <Route
+                index
+                element={<HomePage />}
+              />
               <Route
                 path="expenses/new"
                 element={<ExpensePage />}

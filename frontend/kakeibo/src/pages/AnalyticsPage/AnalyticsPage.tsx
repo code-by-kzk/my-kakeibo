@@ -24,25 +24,56 @@ import {
 
 import GlassCard from "../../components/ui/GlassCard";
 
+import { useCategories } from "../../contexts/CategoryContext";
 import { useExpenses } from "../../contexts/ExpenseContext";
 import { useSettings } from "../../contexts/SettingsContext";
 
 import type { Expense } from "../../types/expense";
 
-type Category = Expense["category"];
-
-const categoryConfig: Record<
-    Category,
-    { label: string; color: string }
-> = {
-    food: { label: "食費", color: "#DCC397" },
-    daily: { label: "日用品", color: "#75CBE3" },
-    transport: { label: "交通費", color: "#A78BFA" },
-    housing: { label: "住居費", color: "#93C5FD" },
-    utilities: { label: "水道・光熱費", color: "#F9A8D4" },
-    entertainment: { label: "娯楽", color: "#86EFAC" },
-    other: { label: "その他", color: "#94A3B8" },
+// 既存カテゴリの色は維持する
+const defaultCategoryColors: Record<string, string> = {
+    food: "#DCC397",
+    daily: "#75CBE3",
+    transport: "#A78BFA",
+    housing: "#93C5FD",
+    utilities: "#F9A8D4",
+    entertainment: "#86EFAC",
+    other: "#94A3B8",
 };
+
+// 追加カテゴリ用のカラーパレット
+const customCategoryColors = [
+    "#FCA5A5",
+    "#FCD34D",
+    "#5EEAD4",
+    "#C4B5FD",
+    "#FDBA74",
+    "#67E8F9",
+    "#BEF264",
+    "#F0ABFC",
+    "#93C5FD",
+    "#FDA4AF",
+];
+
+function getCategoryColor(categoryId: string): string {
+    const defaultColor = defaultCategoryColors[categoryId];
+
+    if (defaultColor) {
+        return defaultColor;
+    }
+
+    // カテゴリIDから安定した色を決定する
+    let hash = 0;
+
+    for (let index = 0; index < categoryId.length; index++) {
+        hash =
+            (hash * 31 + categoryId.charCodeAt(index)) >>> 0;
+    }
+
+    return customCategoryColors[
+        hash % customCategoryColors.length
+    ];
+}
 
 function formatYen(value: number): string {
     return new Intl.NumberFormat("ja-JP", {
@@ -81,6 +112,7 @@ export default function AnalyticsPage() {
         loadError,
     } = useExpenses();
 
+    const { getCategoryName } = useCategories();
     const { settings } = useSettings();
 
     const [selectedMonth, setSelectedMonth] = useState(
@@ -140,39 +172,34 @@ export default function AnalyticsPage() {
             : null;
 
     // カテゴリ別集計
+    // 固定7カテゴリではなく、支出データに存在する
+    // すべてのカテゴリを集計対象にする
     const categoryData = useMemo(() => {
-        return (
-            Object.entries(categoryConfig) as [
-                Category,
-                { label: string; color: string }
-            ][]
-        )
-            .map(([key, config]) => {
-                const amount = monthlyExpenses
-                    .filter(
-                        (expense) =>
-                            expense.category === key
-                    )
-                    .reduce(
-                        (sum, expense) =>
-                            sum + expense.amount,
-                        0
-                    );
+        const totals = new Map<string, number>();
 
-                return {
-                    key,
-                    name: config.label,
-                    value: amount,
-                    color: config.color,
-                    percent:
-                        totalAmount > 0
-                            ? (amount / totalAmount) * 100
-                            : 0,
-                };
-            })
+        for (const expense of monthlyExpenses) {
+            const current = totals.get(expense.category) ?? 0;
+
+            totals.set(
+                expense.category,
+                current + expense.amount
+            );
+        }
+
+        return Array.from(totals.entries())
+            .map(([key, amount]) => ({
+                key,
+                name: getCategoryName(key),
+                value: amount,
+                color: getCategoryColor(key),
+                percent:
+                    totalAmount > 0
+                        ? (amount / totalAmount) * 100
+                        : 0,
+            }))
             .filter((item) => item.value > 0)
             .sort((a, b) => b.value - a.value);
-    }, [monthlyExpenses, totalAmount]);
+    }, [monthlyExpenses, totalAmount, getCategoryName]);
 
     // 選択月までの過去6か月
     const trendData = useMemo(() => {

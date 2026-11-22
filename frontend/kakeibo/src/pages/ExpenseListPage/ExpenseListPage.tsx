@@ -1,4 +1,5 @@
 
+import { useCategories } from "../../contexts/CategoryContext";
 import { useExpenses } from "../../contexts/ExpenseContext";
 import { useSettings } from "../../contexts/SettingsContext";
 import { useMemo, useState } from "react";
@@ -20,47 +21,16 @@ import {
 import GlassCard from "../../components/ui/GlassCard";
 import type { Expense } from "../../types/expense";
 
-type Category =
-    | "food"
-    | "daily"
-    | "transport"
-    | "housing"
-    | "utilities"
-    | "entertainment"
-    | "other";
-
-const categoryConfig: Record<
-    Category,
-    { label: string; icon: LucideIcon }
-> = {
-    food: {
-        label: "食費",
-        icon: Utensils,
-    },
-    daily: {
-        label: "日用品",
-        icon: ShoppingBasket,
-    },
-    transport: {
-        label: "交通費",
-        icon: TrainFront,
-    },
-    housing: {
-        label: "住居費",
-        icon: House,
-    },
-    utilities: {
-        label: "水道・光熱費",
-        icon: Zap,
-    },
-    entertainment: {
-        label: "娯楽",
-        icon: Clapperboard,
-    },
-    other: {
-        label: "その他",
-        icon: Wallet,
-    },
+// 既存カテゴリのアイコン設定
+// 新しく追加したカテゴリにはWalletを使用する
+const categoryIcons: Record<string, LucideIcon> = {
+    food: Utensils,
+    daily: ShoppingBasket,
+    transport: TrainFront,
+    housing: House,
+    utilities: Zap,
+    entertainment: Clapperboard,
+    other: Wallet,
 };
 
 function formatYen(value: number): string {
@@ -97,6 +67,9 @@ export default function ExpenseListPage() {
         isLoading,
         loadError,
     } = useExpenses();
+
+    // APIから取得したカテゴリ名を使用
+    const { getCategoryName } = useCategories();
 
     const { settings } = useSettings();
     const memberNames = settings.memberNames;
@@ -244,6 +217,7 @@ export default function ExpenseListPage() {
                         <p className="text-xs text-gold">
                             {memberNames.A}の負担
                         </p>
+
                         <p className="mt-2 break-all text-base font-semibold">
                             {formatYen(totals.A)}
                         </p>
@@ -253,6 +227,7 @@ export default function ExpenseListPage() {
                         <p className="text-xs text-cyan-glow">
                             {memberNames.B}の負担
                         </p>
+
                         <p className="mt-2 break-all text-base font-semibold">
                             {formatYen(totals.B)}
                         </p>
@@ -287,10 +262,14 @@ export default function ExpenseListPage() {
                             </h2>
 
                             {items.map((expense) => {
-                                const category =
-                                    categoryConfig[expense.category as Category];
+                                // 追加カテゴリでも必ずアイコンを取得
+                                const Icon =
+                                    categoryIcons[expense.category] ??
+                                    Wallet;
 
-                                const Icon = category.icon;
+                                // 表示名はAPIから取得した名称を使用
+                                const categoryName =
+                                    getCategoryName(expense.category);
 
                                 return (
                                     <Link
@@ -308,7 +287,7 @@ export default function ExpenseListPage() {
                                                 {/* カテゴリと支払者 */}
                                                 <div className="min-w-0 flex-1">
                                                     <p className="truncate font-medium">
-                                                        {category.label}
+                                                        {categoryName}
                                                     </p>
 
                                                     <p className="mt-1 text-xs text-mist">
@@ -328,6 +307,7 @@ export default function ExpenseListPage() {
                                                     <p className="text-xs text-mist">
                                                         {memberNames.A}の負担
                                                     </p>
+
                                                     <p className="mt-1 break-all text-sm font-medium text-gold">
                                                         {formatYen(expense.shares.A)}
                                                     </p>
@@ -337,6 +317,7 @@ export default function ExpenseListPage() {
                                                     <p className="text-xs text-mist">
                                                         {memberNames.B}の負担
                                                     </p>
+
                                                     <p className="mt-1 break-all text-sm font-medium text-cyan-glow">
                                                         {formatYen(expense.shares.B)}
                                                     </p>

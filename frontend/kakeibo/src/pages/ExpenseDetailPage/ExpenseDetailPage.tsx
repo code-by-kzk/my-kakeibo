@@ -1,6 +1,7 @@
 
 import { useNavigate } from "react-router-dom";
 import { useExpenses } from "../../contexts/ExpenseContext";
+import { useCategories } from "../../contexts/CategoryContext";
 import { useSettings } from "../../contexts/SettingsContext";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -22,26 +23,14 @@ import {
 
 import GlassCard from "../../components/ui/GlassCard";
 
-type Category =
-    | "food"
-    | "daily"
-    | "transport"
-    | "housing"
-    | "utilities"
-    | "entertainment"
-    | "other";
-
-const categoryConfig: Record<
-    Category,
-    { label: string; icon: LucideIcon }
-> = {
-    food: { label: "食費", icon: Utensils },
-    daily: { label: "日用品", icon: ShoppingBasket },
-    transport: { label: "交通費", icon: TrainFront },
-    housing: { label: "住居費", icon: House },
-    utilities: { label: "水道・光熱費", icon: Zap },
-    entertainment: { label: "娯楽", icon: Clapperboard },
-    other: { label: "その他", icon: Wallet },
+const categoryIcons: Record<string, LucideIcon> = {
+    food: Utensils,
+    daily: ShoppingBasket,
+    transport: TrainFront,
+    housing: House,
+    utilities: Zap,
+    entertainment: Clapperboard,
+    other: Wallet,
 };
 
 const paymentMethodLabels: Record<string, string> = {
@@ -72,6 +61,7 @@ export default function ExpenseDetailPage() {
     const navigate = useNavigate();
 
     const { settings } = useSettings();
+    const { getCategoryName } = useCategories();
     const memberNames = settings.memberNames;
 
     const {
@@ -163,8 +153,8 @@ export default function ExpenseDetailPage() {
         );
     }
 
-    const category = categoryConfig[expense.category];
-    const CategoryIcon = category.icon;
+    const categoryName = getCategoryName(expense.category);
+    const CategoryIcon = categoryIcons[expense.category] ?? Wallet;
 
     const aPercent =
         expense.amount > 0
@@ -204,7 +194,7 @@ export default function ExpenseDetailPage() {
                     </div>
 
                     <p className="mt-4 text-sm text-mist">
-                        {category.label}
+                        {categoryName}
                     </p>
 
                     <p className="mt-2 max-w-full break-all text-3xl font-semibold tracking-wide">

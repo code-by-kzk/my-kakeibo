@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     CalendarDays,
@@ -13,6 +13,7 @@ import {
 import GlassCard from "../../components/ui/GlassCard";
 import GoldButton from "../../components/ui/GoldButton";
 
+import { useCategories } from "../../contexts/CategoryContext";
 import { useExpenses } from "../../contexts/ExpenseContext";
 import { useSettings } from "../../contexts/SettingsContext";
 
@@ -21,20 +22,6 @@ import type {
     PaymentMethod,
     Person,
 } from "../../types/expense";
-
-// カテゴリ
-const categories: {
-    value: Category;
-    label: string;
-}[] = [
-        { value: "food", label: "食費" },
-        { value: "daily", label: "日用品" },
-        { value: "transport", label: "交通費" },
-        { value: "housing", label: "住居費" },
-        { value: "utilities", label: "水道・光熱費" },
-        { value: "entertainment", label: "娯楽" },
-        { value: "other", label: "その他" },
-    ];
 
 // 支払い方法
 const paymentMethods: {
@@ -100,6 +87,13 @@ export default function ExpensePage() {
     const { addExpense } = useExpenses();
     const { settings } = useSettings();
 
+    // カテゴリはGo APIから取得
+    const {
+        categories,
+        isLoading: categoriesLoading,
+        loadError: categoriesError,
+    } = useCategories();
+
     // 設定から表示名を取得
     const memberAName = settings.memberNames.A;
     const memberBName = settings.memberNames.B;
@@ -116,8 +110,41 @@ export default function ExpensePage() {
     const [paymentMethod, setPaymentMethod] =
         useState<PaymentMethod>("credit");
 
+    // カテゴリIDを保持
     const [category, setCategory] =
-        useState<Category>("food");
+        useState<Category>("");
+
+    // カテゴリ取得後に初期値を設定
+    useEffect(() => {
+        if (categoriesLoading) {
+            return;
+        }
+
+        if (categories.length === 0) {
+            setCategory("");
+            return;
+        }
+
+        setCategory((current) => {
+            const exists = categories.some(
+                (item) => item.id === current
+            );
+
+            if (exists) {
+                return current;
+            }
+
+            // 初期カテゴリとして食費を優先
+            const defaultCategory = categories.find(
+                (item) => item.id === "food"
+            );
+
+            return (
+                defaultCategory?.id ??
+                categories[0].id
+            );
+        });
+    }, [categories, categoriesLoading]);
 
     // 負担額
     const [aShare, setAShare] = useState(0);
@@ -129,6 +156,20 @@ export default function ExpensePage() {
 
     // エラーメッセージ
     const [error, setError] = useState("");
+
+    const categoryExists = categories.some(
+        (item) => item.id === category
+    );
+
+    const categoryUnavailable =
+        categoriesLoading ||
+        categoriesError !== null ||
+        categories.length === 0;
+
+    const canSubmit =
+        !isSubmitting &&
+        !categoryUnavailable &&
+        categoryExists;
 
     // 入力欄の共通スタイル
     const inputClassName =
@@ -225,13 +266,30 @@ export default function ExpensePage() {
             return;
         }
 
-        if (!Number.isSafeInteger(amount) || amount <= 0) {
-            setError("支出金額を正しく入力してください。");
+        if (
+            categoryUnavailable ||
+            !categoryExists
+        ) {
+            setError(
+                "カテゴリを選択できません。カテゴリ情報を確認してください。"
+            );
+            return;
+        }
+
+        if (
+            !Number.isSafeInteger(amount) ||
+            amount <= 0
+        ) {
+            setError(
+                "支出金額を正しく入力してください。"
+            );
             return;
         }
 
         if (!date) {
-            setError("支出日を入力してください。");
+            setError(
+                "支出日を入力してください。"
+            );
             return;
         }
 
@@ -240,7 +298,9 @@ export default function ExpensePage() {
             bShare < 0 ||
             aShare + bShare !== amount
         ) {
-            setError("負担額の合計が支出金額と一致しません。");
+            setError(
+                "負担額の合計が支出金額と一致しません。"
+            );
             return;
         }
 
@@ -464,23 +524,61 @@ export default function ExpensePage() {
                     </div>
 
                     <select
-                        value={category}
-                        onChange={(event) =>
-                            setCategory(
-                                event.target.value as Category
-                            )
+                        value={
+                            categoryExists
+                                ? category
+                                : ""
                         }
-                        className={inputClassName}
+                        onChange={(event) => {
+                            setCategory(event.target.value);
+                            setError("");
+                        }}
+                        disabled={categoryUnavailable}
+                        required
+                        className={
+                            inputClassName +
+                            " disabled:cursor-not-allowed disabled:opacity-50"
+                        }
                     >
+                        {!categoryExists && (
+                            <option value="" disabled>
+                                {categoriesLoading
+                                    ? "カテゴリを読み込み中..."
+                                    : "カテゴリを選択してください"}
+                            </option>
+                        )}
+
                         {categories.map((item) => (
                             <option
-                                key={item.value}
-                                value={item.value}
+                                key={item.id}
+                                value={item.id}
                             >
-                                {item.label}
+                                {item.name}
                             </option>
                         ))}
                     </select>
+
+                    {categoriesError && (
+                        <p
+                            role="alert"
+                            className="mt-3 text-sm text-red-200"
+                        >
+                            カテゴリの取得に失敗しました。
+                            設定画面またはAPI接続を確認してください。
+                        </p>
+                    )}
+
+                    {!categoriesLoading &&
+                        !categoriesError &&
+                        categories.length === 0 && (
+                            <p
+                                role="alert"
+                                className="mt-3 text-sm text-red-200"
+                            >
+                                カテゴリが登録されていません。
+                                設定画面からカテゴリを追加してください。
+                            </p>
+                        )}
                 </GlassCard>
 
                 {/* 負担内訳 */}
@@ -638,7 +736,7 @@ export default function ExpensePage() {
                 {/* 登録ボタン */}
                 <GoldButton
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={!canSubmit}
                 >
                     <span className="flex items-center justify-center gap-2">
                         <Save size={18} />

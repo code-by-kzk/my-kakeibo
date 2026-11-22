@@ -7,14 +7,16 @@ export type PaymentMethod =
     | "debit"
     | "qr";
 
-export type Category =
-    | "food"
-    | "daily"
-    | "transport"
-    | "housing"
-    | "utilities"
-    | "entertainment"
-    | "other";
+// カテゴリはDBで管理するため、固定のUnion型を廃止
+export type Category = string;
+
+export type ExpenseCategory = {
+    id: string;
+    name: string;
+    sortOrder: number;
+    createdAt: string;
+    updatedAt: string;
+};
 
 export type Expense = {
     id: string;

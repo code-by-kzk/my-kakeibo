@@ -1,6 +1,8 @@
 
 import { useNavigate } from "react-router-dom";
 import { useExpenses } from "../../contexts/ExpenseContext";
+import { useCategories } from "../../contexts/CategoryContext";
+import type { Expense, Person, PaymentMethod, Category } from "../../types/expense";
 import { useSettings } from "../../contexts/SettingsContext";
 import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -15,51 +17,11 @@ import {
 import GlassCard from "../../components/ui/GlassCard";
 import GoldButton from "../../components/ui/GoldButton";
 
-type Person = "A" | "B";
-
-type PaymentMethod =
-    | "cash"
-    | "credit"
-    | "debit"
-    | "qr";
-
-type Category =
-    | "food"
-    | "daily"
-    | "transport"
-    | "housing"
-    | "utilities"
-    | "entertainment"
-    | "other";
-
-type Expense = {
-    id: string;
-    date: string;
-    amount: number;
-    payer: Person;
-    paymentMethod: PaymentMethod;
-    category: Category;
-    shares: {
-        A: number;
-        B: number;
-    };
-};
-
 const paymentMethods: Record<PaymentMethod, string> = {
     cash: "現金",
     credit: "クレジットカード",
     debit: "デビットカード",
     qr: "QRコード決済",
-};
-
-const categories: Record<Category, string> = {
-    food: "食費",
-    daily: "日用品",
-    transport: "交通費",
-    housing: "住居費",
-    utilities: "水道・光熱費",
-    entertainment: "娯楽",
-    other: "その他",
 };
 
 const inputClass = [
@@ -90,6 +52,7 @@ function parseAmount(value: string): number | null {
 function ExpenseEditForm({ expense }: { expense: Expense }) {
     const navigate = useNavigate();
     const { updateExpense } = useExpenses();
+    const { categories, isLoading: categoriesLoading, loadError: categoriesError } = useCategories();
     const { settings } = useSettings();
     const memberNames = settings.memberNames;
 
@@ -136,7 +99,10 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
         parsedAmount !== null &&
         parsedAmount > 0 &&
         Boolean(date) &&
-        editingShare === null;
+        editingShare === null &&
+        !categoriesLoading &&
+        !categoriesError &&
+        categories.some((item) => item.id === category);
 
     function handleAmountChange(value: string) {
         setAmountInput(value);
@@ -370,15 +336,19 @@ function ExpenseEditForm({ expense }: { expense: Expense }) {
                                     setCategory(e.target.value as Category)
                                 }
                                 className={inputClass}
+                                disabled={categoriesLoading || categoriesError !== null}
                             >
-                                {Object.entries(categories).map(
-                                    ([value, label]) => (
-                                        <option key={value} value={value}>
-                                            {label}
-                                        </option>
-                                    )
-                                )}
+                                {categories.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                        {item.name}
+                                    </option>
+                                ))}
                             </select>
+                            {categoriesError && (
+                                <p role="alert" className="mt-2 text-sm text-red-200">
+                                    カテゴリの取得に失敗しました。
+                                </p>
+                            )}
                         </div>
                     </div>
                 </GlassCard>

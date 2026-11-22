@@ -7,16 +7,23 @@ import {
     House,
     Info,
     LogOut,
+    Pencil,
+    Plus,
     RotateCcw,
     Save,
     Settings2,
     ShieldCheck,
+    Tags,
+    Trash2,
     Users,
+    X,
 } from "lucide-react";
 
 import GlassCard from "../../components/ui/GlassCard";
 import GoldButton from "../../components/ui/GoldButton";
 import { useAuth } from "../../contexts/AuthContext";
+import { useCategories } from "../../contexts/CategoryContext";
+import { useExpenses } from "../../contexts/ExpenseContext";
 import { useSettings } from "../../contexts/SettingsContext";
 
 export default function SettingsPage() {
@@ -31,7 +38,21 @@ export default function SettingsPage() {
         resetSettings,
     } = useSettings();
 
-    // フォームの入力値
+    const {
+        categories,
+        isLoading: categoriesLoading,
+        loadError: categoriesError,
+        addCategory,
+        updateCategory,
+        deleteCategory,
+    } = useCategories();
+
+    const { expenses } = useExpenses();
+
+    // ========================================
+    // 家計簿設定フォーム
+    // ========================================
+
     const [householdName, setHouseholdName] = useState(
         settings.householdName,
     );
@@ -48,30 +69,247 @@ export default function SettingsPage() {
         settings.defaultSharePercentA,
     );
 
-    // API通信状態
+    // ========================================
+    // 家計簿設定の通信状態
+    // ========================================
+
     const [isSaving, setIsSaving] = useState(false);
     const [isResetting, setIsResetting] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-    const [actionError, setActionError] = useState<string | null>(
-        null,
-    );
+    const [actionError, setActionError] = useState<
+        string | null
+    >(null);
 
-    const [logoutError, setLogoutError] = useState<string | null>(
-        null,
-    );
+    const [logoutError, setLogoutError] = useState<
+        string | null
+    >(null);
 
-    // 保存完了メッセージ
     const [saved, setSaved] = useState(false);
 
-    // 確認ダイアログ
     const [showResetConfirm, setShowResetConfirm] =
         useState(false);
 
     const [showLogoutConfirm, setShowLogoutConfirm] =
         useState(false);
 
-    // Contextの値が変わった場合にフォームへ反映
+    // ========================================
+    // カテゴリ管理
+    // ========================================
+
+    const [newCategoryName, setNewCategoryName] =
+        useState("");
+
+    const [editingCategoryId, setEditingCategoryId] =
+        useState<string | null>(null);
+
+    const [editingCategoryName, setEditingCategoryName] =
+        useState("");
+
+    const [deletingCategoryId, setDeletingCategoryId] =
+        useState<string | null>(null);
+
+    const [isCategorySaving, setIsCategorySaving] =
+        useState(false);
+
+    const [isCategoryDeleting, setIsCategoryDeleting] =
+        useState(false);
+
+    const [categoryActionError, setCategoryActionError] =
+        useState<string | null>(null);
+
+    const [categorySuccess, setCategorySuccess] =
+        useState<string | null>(null);
+
+    const isCategoryBusy =
+        isCategorySaving || isCategoryDeleting;
+
+    const isCategoryDisabled =
+        categoriesLoading ||
+        categoriesError !== null ||
+        isCategoryBusy;
+
+    const deletingCategory = categories.find(
+        (category) => category.id === deletingCategoryId,
+    );
+
+    const deletingCategoryIsUsed = expenses.some(
+        (expense) => expense.category === deletingCategoryId,
+    );
+
+    const clearCategoryMessages = () => {
+        setCategoryActionError(null);
+        setCategorySuccess(null);
+    };
+
+    const validateCategoryName = (
+        value: string,
+    ): string | null => {
+        const name = value.trim();
+
+        if (!name) {
+            return "カテゴリ名を入力してください。";
+        }
+
+        if (Array.from(name).length > 50) {
+            return "カテゴリ名は50文字以内で入力してください。";
+        }
+
+        const duplicated = categories.some(
+            (category) =>
+                category.name.toLocaleLowerCase() ===
+                name.toLocaleLowerCase() &&
+                category.id !== editingCategoryId,
+        );
+
+        if (duplicated) {
+            return "同じ名前のカテゴリが存在します。";
+        }
+
+        return null;
+    };
+
+    const handleAddCategory = async (): Promise<void> => {
+        if (isCategoryDisabled) {
+            return;
+        }
+
+        const name = newCategoryName.trim();
+        const error = validateCategoryName(name);
+
+        if (error) {
+            setCategoryActionError(error);
+            setCategorySuccess(null);
+            return;
+        }
+
+        setIsCategorySaving(true);
+        clearCategoryMessages();
+
+        try {
+            await addCategory(name);
+
+            setNewCategoryName("");
+            setCategorySuccess(
+                `「${name}」を追加しました。`,
+            );
+        } catch (error) {
+            setCategoryActionError(
+                error instanceof Error
+                    ? error.message
+                    : "カテゴリの追加に失敗しました。",
+            );
+        } finally {
+            setIsCategorySaving(false);
+        }
+    };
+
+    const handleStartCategoryEdit = (
+        id: string,
+        name: string,
+    ) => {
+        if (isCategoryDisabled) {
+            return;
+        }
+
+        setEditingCategoryId(id);
+        setEditingCategoryName(name);
+        clearCategoryMessages();
+    };
+
+    const handleCancelCategoryEdit = () => {
+        setEditingCategoryId(null);
+        setEditingCategoryName("");
+        clearCategoryMessages();
+    };
+
+    const handleUpdateCategory = async (): Promise<void> => {
+        if (
+            isCategoryDisabled ||
+            editingCategoryId === null
+        ) {
+            return;
+        }
+
+        const name = editingCategoryName.trim();
+        const error = validateCategoryName(name);
+
+        if (error) {
+            setCategoryActionError(error);
+            setCategorySuccess(null);
+            return;
+        }
+
+        setIsCategorySaving(true);
+        clearCategoryMessages();
+
+        try {
+            await updateCategory(editingCategoryId, name);
+
+            setEditingCategoryId(null);
+            setEditingCategoryName("");
+
+            setCategorySuccess(
+                `カテゴリ名を「${name}」に変更しました。`,
+            );
+        } catch (error) {
+            setCategoryActionError(
+                error instanceof Error
+                    ? error.message
+                    : "カテゴリ名の変更に失敗しました。",
+            );
+        } finally {
+            setIsCategorySaving(false);
+        }
+    };
+
+    const handleDeleteCategory = async (): Promise<void> => {
+        if (
+            isCategoryDisabled ||
+            deletingCategoryId === null
+        ) {
+            return;
+        }
+
+        if (deletingCategoryIsUsed) {
+            setCategoryActionError(
+                "支出で使用中のカテゴリは削除できません。",
+            );
+            setDeletingCategoryId(null);
+            return;
+        }
+
+        const categoryName =
+            deletingCategory?.name ?? "カテゴリ";
+
+        setIsCategoryDeleting(true);
+        clearCategoryMessages();
+
+        try {
+            await deleteCategory(deletingCategoryId);
+
+            setDeletingCategoryId(null);
+
+            setCategorySuccess(
+                `「${categoryName}」を削除しました。`,
+            );
+        } catch (error) {
+            setDeletingCategoryId(null);
+
+            setCategoryActionError(
+                error instanceof Error
+                    ? error.message
+                    : "カテゴリの削除に失敗しました。",
+            );
+        } finally {
+            setIsCategoryDeleting(false);
+        }
+    };
+
+    // ========================================
+    // 家計簿設定
+    // ========================================
+
     useEffect(() => {
         setHouseholdName(settings.householdName);
         setMemberAName(settings.memberNames.A);
@@ -79,14 +317,12 @@ export default function SettingsPage() {
         setDefaultShareA(settings.defaultSharePercentA);
     }, [settings]);
 
-    // 入力内容に変更があるか
     const hasChanges =
         householdName !== settings.householdName ||
         memberAName !== settings.memberNames.A ||
         memberBName !== settings.memberNames.B ||
         defaultShareA !== settings.defaultSharePercentA;
 
-    // API取得失敗時や通信中は編集を防止
     const isBusy =
         isSaving || isResetting || isLoggingOut;
 
@@ -98,7 +334,6 @@ export default function SettingsPage() {
         setActionError(null);
     };
 
-    // 保存
     const handleSave = async (): Promise<void> => {
         if (isFormDisabled || !hasChanges) {
             return;
@@ -113,7 +348,9 @@ export default function SettingsPage() {
             !trimmedMemberAName ||
             !trimmedMemberBName
         ) {
-            setActionError("すべての名前を入力してください。");
+            setActionError(
+                "すべての名前を入力してください。",
+            );
             setSaved(false);
             return;
         }
@@ -135,7 +372,9 @@ export default function SettingsPage() {
             trimmedMemberAName.length > 50 ||
             trimmedMemberBName.length > 50
         ) {
-            setActionError("入力文字数が上限を超えています。");
+            setActionError(
+                "入力文字数が上限を超えています。",
+            );
             setSaved(false);
             return;
         }
@@ -163,7 +402,6 @@ export default function SettingsPage() {
         }
     };
 
-    // 保存前の変更を取り消す
     const handleCancelChanges = () => {
         if (isFormDisabled) {
             return;
@@ -173,10 +411,10 @@ export default function SettingsPage() {
         setMemberAName(settings.memberNames.A);
         setMemberBName(settings.memberNames.B);
         setDefaultShareA(settings.defaultSharePercentA);
+
         clearMessages();
     };
 
-    // 設定を初期値に戻す
     const handleReset = async (): Promise<void> => {
         if (isFormDisabled) {
             return;
@@ -188,7 +426,6 @@ export default function SettingsPage() {
         try {
             await resetSettings();
 
-            // フォームの値はContextの更新に追従する
             setShowResetConfirm(false);
             setSaved(true);
         } catch {
@@ -200,7 +437,6 @@ export default function SettingsPage() {
         }
     };
 
-    // ログアウト
     const handleLogout = async (): Promise<void> => {
         if (isBusy) {
             return;
@@ -210,17 +446,14 @@ export default function SettingsPage() {
         setLogoutError(null);
 
         try {
-            // サーバー側のセッションを無効化し、
-            // AuthContextの認証状態を更新する
             await logout();
 
             setShowLogoutConfirm(false);
 
-            // ログイン画面へ遷移
-            navigate("/login", { replace: true });
+            navigate("/login", {
+                replace: true,
+            });
         } catch {
-            // ログアウトに失敗した場合は
-            // ダイアログを閉じずにエラーを表示する
             setLogoutError(
                 "ログアウトに失敗しました。通信状態を確認して再度お試しください。",
             );
@@ -238,7 +471,10 @@ export default function SettingsPage() {
         clearMessages();
     };
 
-    // 入力欄の共通スタイル
+    // ========================================
+    // 共通スタイル
+    // ========================================
+
     const inputClassName =
         "mt-2 w-full min-w-0 rounded-xl " +
         "border border-gold/20 bg-night/60 " +
@@ -249,9 +485,20 @@ export default function SettingsPage() {
         "focus:ring-gold/20 " +
         "disabled:cursor-not-allowed disabled:opacity-50";
 
+    const smallButtonClassName =
+        "flex min-h-10 items-center justify-center " +
+        "gap-2 rounded-xl border border-gold/20 " +
+        "px-3 py-2 text-sm text-mist " +
+        "transition-colors hover:bg-gold/10 " +
+        "hover:text-moon disabled:cursor-not-allowed " +
+        "disabled:opacity-50";
+
     return (
         <div className="mx-auto w-full min-w-0 max-w-xl space-y-6 pb-8 text-moon">
-            {/* ページタイトル */}
+            {/* ========================================
+                ページタイトル
+            ======================================== */}
+
             <header>
                 <p className="mb-2 text-xs tracking-[0.2em] text-gold">
                     SETTINGS
@@ -267,6 +514,7 @@ export default function SettingsPage() {
             </header>
 
             {/* 読み込み状態 */}
+
             {isLoading && (
                 <div
                     role="status"
@@ -277,12 +525,14 @@ export default function SettingsPage() {
             )}
 
             {/* 設定取得エラー */}
+
             {loadError && (
                 <div
                     role="alert"
                     className="rounded-xl border border-red-300/20 bg-red-300/5 px-4 py-3 text-sm text-red-200"
                 >
                     <p>{loadError}</p>
+
                     <p className="mt-2 text-xs">
                         設定を変更するには、API接続を確認して
                         ページを再読み込みしてください。
@@ -290,7 +540,10 @@ export default function SettingsPage() {
                 </div>
             )}
 
-            {/* 家計簿の設定 */}
+            {/* ========================================
+                家計簿の設定
+            ======================================== */}
+
             <GlassCard>
                 <div className="mb-5 flex items-center gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold">
@@ -317,7 +570,9 @@ export default function SettingsPage() {
                         type="text"
                         value={householdName}
                         onChange={(event) => {
-                            setHouseholdName(event.target.value);
+                            setHouseholdName(
+                                event.target.value,
+                            );
                             clearMessages();
                         }}
                         disabled={isFormDisabled}
@@ -328,7 +583,10 @@ export default function SettingsPage() {
                 </label>
             </GlassCard>
 
-            {/* メンバー設定 */}
+            {/* ========================================
+                メンバー設定
+            ======================================== */}
+
             <GlassCard>
                 <div className="mb-5 flex items-center gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold">
@@ -347,7 +605,6 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-5">
-                    {/* Aさん */}
                     <label className="block">
                         <span className="flex items-center gap-2 text-sm text-mist">
                             <span className="size-2 rounded-full bg-gold" />
@@ -358,7 +615,9 @@ export default function SettingsPage() {
                             type="text"
                             value={memberAName}
                             onChange={(event) => {
-                                setMemberAName(event.target.value);
+                                setMemberAName(
+                                    event.target.value,
+                                );
                                 clearMessages();
                             }}
                             disabled={isFormDisabled}
@@ -368,7 +627,6 @@ export default function SettingsPage() {
                         />
                     </label>
 
-                    {/* Bさん */}
                     <label className="block">
                         <span className="flex items-center gap-2 text-sm text-mist">
                             <span className="size-2 rounded-full bg-cyan-glow" />
@@ -379,7 +637,9 @@ export default function SettingsPage() {
                             type="text"
                             value={memberBName}
                             onChange={(event) => {
-                                setMemberBName(event.target.value);
+                                setMemberBName(
+                                    event.target.value,
+                                );
                                 clearMessages();
                             }}
                             disabled={isFormDisabled}
@@ -396,7 +656,10 @@ export default function SettingsPage() {
                 </p>
             </GlassCard>
 
-            {/* デフォルト負担割合 */}
+            {/* ========================================
+                デフォルト負担割合
+            ======================================== */}
+
             <GlassCard>
                 <div className="mb-5 flex items-center gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold">
@@ -414,7 +677,6 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                {/* 負担割合表示 */}
                 <div className="grid grid-cols-2 gap-3">
                     <div className="min-w-0 rounded-xl border border-gold/20 bg-gold/10 p-4">
                         <p className="truncate text-xs text-gold">
@@ -443,7 +705,6 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                {/* 割合スライダー */}
                 <div className="mt-6">
                     <input
                         type="range"
@@ -468,7 +729,6 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                {/* 50:50リセット */}
                 <button
                     type="button"
                     onClick={() => handleShareChange(50)}
@@ -485,7 +745,290 @@ export default function SettingsPage() {
                 </p>
             </GlassCard>
 
-            {/* 保存 */}
+            {/* ========================================
+                カテゴリ管理
+            ======================================== */}
+
+            <GlassCard>
+                <div className="mb-5 flex items-center gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold">
+                        <Tags size={20} />
+                    </div>
+
+                    <div>
+                        <h2 className="font-serif text-base">
+                            支出カテゴリ
+                        </h2>
+
+                        <p className="mt-1 text-xs text-mist">
+                            カテゴリの追加・編集・削除
+                        </p>
+                    </div>
+                </div>
+
+                <p className="mb-5 text-xs leading-relaxed text-mist/80">
+                    ふたりで共通のカテゴリを使用します。
+                    変更した内容は支出の登録や表示にも反映されます。
+                </p>
+
+                {categoriesLoading && (
+                    <div
+                        role="status"
+                        className="mb-4 rounded-xl border border-gold/20 bg-gold/5 px-4 py-3 text-sm text-mist"
+                    >
+                        カテゴリを読み込んでいます...
+                    </div>
+                )}
+
+                {categoriesError && (
+                    <div
+                        role="alert"
+                        className="mb-4 rounded-xl border border-red-300/20 bg-red-300/5 px-4 py-3 text-sm text-red-200"
+                    >
+                        {categoriesError}
+                    </div>
+                )}
+
+                {categorySuccess && (
+                    <div
+                        role="status"
+                        className="mb-4 flex items-center gap-2 rounded-xl border border-cyan-glow/20 bg-cyan-glow/10 px-4 py-3 text-sm text-cyan-glow"
+                    >
+                        <Check size={17} />
+                        {categorySuccess}
+                    </div>
+                )}
+
+                {categoryActionError && (
+                    <div
+                        role="alert"
+                        className="mb-4 rounded-xl border border-red-300/20 bg-red-300/5 px-4 py-3 text-sm text-red-200"
+                    >
+                        {categoryActionError}
+                    </div>
+                )}
+
+                {/* カテゴリ一覧 */}
+
+                {!categoriesLoading &&
+                    !categoriesError && (
+                        <div className="space-y-2">
+                            {categories.map((category) => {
+                                const isEditing =
+                                    editingCategoryId ===
+                                    category.id;
+
+                                const isUsed = expenses.some(
+                                    (expense) =>
+                                        expense.category ===
+                                        category.id,
+                                );
+
+                                return (
+                                    <div
+                                        key={category.id}
+                                        className="rounded-xl border border-gold/15 bg-night/40 p-3"
+                                    >
+                                        {isEditing ? (
+                                            <div className="space-y-3">
+                                                <label className="block">
+                                                    <span className="text-xs text-mist">
+                                                        カテゴリ名
+                                                    </span>
+
+                                                    <input
+                                                        type="text"
+                                                        value={
+                                                            editingCategoryName
+                                                        }
+                                                        onChange={(
+                                                            event,
+                                                        ) => {
+                                                            setEditingCategoryName(
+                                                                event.target.value,
+                                                            );
+                                                            clearCategoryMessages();
+                                                        }}
+                                                        maxLength={50}
+                                                        disabled={
+                                                            isCategoryDisabled
+                                                        }
+                                                        className={
+                                                            inputClassName
+                                                        }
+                                                    />
+                                                </label>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={
+                                                            handleCancelCategoryEdit
+                                                        }
+                                                        disabled={
+                                                            isCategoryBusy
+                                                        }
+                                                        className={
+                                                            smallButtonClassName
+                                                        }
+                                                    >
+                                                        <X size={15} />
+                                                        キャンセル
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            void handleUpdateCategory()
+                                                        }
+                                                        disabled={
+                                                            isCategoryDisabled ||
+                                                            !editingCategoryName.trim() ||
+                                                            editingCategoryName.trim() ===
+                                                            category.name
+                                                        }
+                                                        className="flex min-h-10 items-center justify-center gap-2 rounded-xl bg-gold px-3 py-2 text-sm font-semibold text-night disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        <Check size={15} />
+                                                        保存
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex min-w-0 items-center justify-between gap-3">
+                                                <div className="flex min-w-0 items-center gap-3">
+                                                    <span className="size-2 shrink-0 rounded-full bg-gold/70" />
+
+                                                    <div className="min-w-0">
+                                                        <p className="break-words text-sm text-moon">
+                                                            {category.name}
+                                                        </p>
+
+                                                        {isUsed && (
+                                                            <p className="mt-1 text-[11px] text-mist/70">
+                                                                支出で使用中
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex shrink-0 items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleStartCategoryEdit(
+                                                                category.id,
+                                                                category.name,
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            isCategoryDisabled ||
+                                                            editingCategoryId !==
+                                                            null
+                                                        }
+                                                        aria-label={`${category.name}を編集`}
+                                                        title="編集"
+                                                        className="flex size-10 items-center justify-center rounded-lg text-gold transition-colors hover:bg-gold/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                                    >
+                                                        <Pencil size={17} />
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            clearCategoryMessages();
+                                                            setDeletingCategoryId(
+                                                                category.id,
+                                                            );
+                                                        }}
+                                                        disabled={
+                                                            isCategoryDisabled ||
+                                                            isUsed ||
+                                                            editingCategoryId !==
+                                                            null
+                                                        }
+                                                        aria-label={`${category.name}を削除`}
+                                                        title={
+                                                            isUsed
+                                                                ? "支出で使用中のため削除できません"
+                                                                : "削除"
+                                                        }
+                                                        className="flex size-10 items-center justify-center rounded-lg text-red-200 transition-colors hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-30"
+                                                    >
+                                                        <Trash2 size={17} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            {categories.length === 0 && (
+                                <p className="py-4 text-center text-sm text-mist">
+                                    カテゴリが登録されていません。
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                {/* カテゴリ追加 */}
+
+                <div className="mt-6 border-t border-gold/15 pt-5">
+                    <h3 className="mb-3 text-sm font-medium text-moon">
+                        新しいカテゴリを追加
+                    </h3>
+
+                    <label className="block">
+                        <span className="text-xs text-mist">
+                            カテゴリ名
+                        </span>
+
+                        <input
+                            type="text"
+                            value={newCategoryName}
+                            onChange={(event) => {
+                                setNewCategoryName(
+                                    event.target.value,
+                                );
+                                clearCategoryMessages();
+                            }}
+                            disabled={isCategoryDisabled}
+                            maxLength={50}
+                            placeholder="例：医療費"
+                            className={inputClassName}
+                        />
+                    </label>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            void handleAddCategory()
+                        }
+                        disabled={
+                            isCategoryDisabled ||
+                            editingCategoryId !== null ||
+                            !newCategoryName.trim()
+                        }
+                        className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm font-medium text-gold transition-colors hover:bg-gold/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <Plus size={18} />
+                        {isCategorySaving
+                            ? "保存中..."
+                            : "カテゴリを追加"}
+                    </button>
+                </div>
+
+                <p className="mt-4 text-xs leading-relaxed text-mist/70">
+                    支出で使用中のカテゴリは削除できません。
+                    カテゴリ名を変更しても、登録済みの支出は保持されます。
+                </p>
+            </GlassCard>
+
+            {/* ========================================
+                設定保存
+            ======================================== */}
+
             <GlassCard>
                 <div className="space-y-3">
                     {saved && (
@@ -509,12 +1052,18 @@ export default function SettingsPage() {
 
                     <GoldButton
                         type="button"
-                        onClick={() => void handleSave()}
-                        disabled={isFormDisabled || !hasChanges}
+                        onClick={() =>
+                            void handleSave()
+                        }
+                        disabled={
+                            isFormDisabled || !hasChanges
+                        }
                     >
                         <span className="flex items-center justify-center gap-2">
                             <Save size={18} />
-                            {isSaving ? "保存中..." : "設定を保存"}
+                            {isSaving
+                                ? "保存中..."
+                                : "設定を保存"}
                         </span>
                     </GoldButton>
 
@@ -531,7 +1080,10 @@ export default function SettingsPage() {
                 </div>
             </GlassCard>
 
-            {/* セキュリティ */}
+            {/* ========================================
+                セキュリティ
+            ======================================== */}
+
             <GlassCard>
                 <div className="mb-5 flex items-center gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold">
@@ -576,7 +1128,10 @@ export default function SettingsPage() {
                 </p>
             </GlassCard>
 
-            {/* その他 */}
+            {/* ========================================
+                その他
+            ======================================== */}
+
             <GlassCard>
                 <div className="mb-5 flex items-center gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold">
@@ -621,7 +1176,10 @@ export default function SettingsPage() {
                 </div>
             </GlassCard>
 
-            {/* 設定リセット */}
+            {/* ========================================
+                設定リセット
+            ======================================== */}
+
             <GlassCard>
                 <button
                     type="button"
@@ -641,7 +1199,10 @@ export default function SettingsPage() {
                 </p>
             </GlassCard>
 
-            {/* ログアウト */}
+            {/* ========================================
+                ログアウト
+            ======================================== */}
+
             <button
                 type="button"
                 onClick={() => {
@@ -655,7 +1216,75 @@ export default function SettingsPage() {
                 ログアウト
             </button>
 
-            {/* 設定リセット確認 */}
+            {/* ========================================
+                カテゴリ削除確認
+            ======================================== */}
+
+            {deletingCategoryId !== null && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="category-delete-dialog-title"
+                        className="w-full max-w-sm rounded-2xl border border-gold/25 bg-[#152238] p-6 shadow-2xl"
+                    >
+                        <h2
+                            id="category-delete-dialog-title"
+                            className="font-serif text-lg"
+                        >
+                            カテゴリを削除しますか？
+                        </h2>
+
+                        <p className="mt-3 text-sm leading-relaxed text-mist">
+                            「{deletingCategory?.name ?? "カテゴリ"}」
+                            を削除します。
+                            この操作は取り消せません。
+                        </p>
+
+                        {deletingCategoryIsUsed && (
+                            <p className="mt-3 text-sm text-red-200">
+                                このカテゴリは支出で使用中のため、
+                                削除できません。
+                            </p>
+                        )}
+
+                        <div className="mt-6 grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setDeletingCategoryId(null)
+                                }
+                                disabled={isCategoryDeleting}
+                                className={smallButtonClassName}
+                            >
+                                キャンセル
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    void handleDeleteCategory()
+                                }
+                                disabled={
+                                    isCategoryDeleting ||
+                                    deletingCategoryIsUsed
+                                }
+                                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300/30 bg-red-300/15 px-3 text-sm font-medium text-red-200 transition-colors hover:bg-red-300/25 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <Trash2 size={16} />
+                                {isCategoryDeleting
+                                    ? "削除中..."
+                                    : "削除する"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ========================================
+                設定リセット確認
+            ======================================== */}
+
             {showResetConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5">
                     <div
@@ -701,7 +1330,9 @@ export default function SettingsPage() {
 
                             <button
                                 type="button"
-                                onClick={() => void handleReset()}
+                                onClick={() =>
+                                    void handleReset()
+                                }
                                 disabled={isResetting}
                                 className="min-h-11 rounded-xl bg-gold px-3 text-sm font-semibold text-night disabled:cursor-not-allowed disabled:opacity-50"
                             >
@@ -714,7 +1345,10 @@ export default function SettingsPage() {
                 </div>
             )}
 
-            {/* ログアウト確認 */}
+            {/* ========================================
+                ログアウト確認
+            ======================================== */}
+
             {showLogoutConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5">
                     <div
@@ -759,7 +1393,9 @@ export default function SettingsPage() {
 
                             <button
                                 type="button"
-                                onClick={() => void handleLogout()}
+                                onClick={() =>
+                                    void handleLogout()
+                                }
                                 disabled={isLoggingOut}
                                 className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300/30 bg-red-300/15 px-3 text-sm font-medium text-red-200 transition-colors hover:bg-red-300/25 disabled:cursor-not-allowed disabled:opacity-50"
                             >
