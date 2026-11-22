@@ -1,7 +1,8 @@
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
     ArrowRight,
+    CalendarDays,
     Plus,
     ReceiptText,
 } from "lucide-react";
@@ -14,8 +15,38 @@ import { useCategories } from "../../contexts/CategoryContext";
 import { useExpenses } from "../../contexts/ExpenseContext";
 import { useSettings } from "../../contexts/SettingsContext";
 
+type PeriodType = "current" | "previous" | "last30" | "custom";
+
+type MemberTotals = {
+    A: number;
+    B: number;
+};
+
+type DateRange = {
+    start: string;
+    end: string;
+};
+
+const PERIOD_OPTIONS: {
+    value: PeriodType;
+    label: string;
+}[] = [
+        { value: "current", label: "今月" },
+        { value: "previous", label: "先月" },
+        { value: "last30", label: "過去30日" },
+        { value: "custom", label: "期間指定" },
+    ];
+
 function formatYen(amount: number): string {
     return `¥${amount.toLocaleString("ja-JP")}`;
+}
+
+function formatDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
 }
 
 function getMonthKey(date: Date): string {
@@ -25,14 +56,115 @@ function getMonthKey(date: Date): string {
     return `${year}-${month}`;
 }
 
-function getPreviousMonthKey(date: Date): string {
-    const previousMonth = new Date(
-        date.getFullYear(),
-        date.getMonth() - 1,
-        1
-    );
+function getMonthRange(
+    year: number,
+    monthIndex: number
+): DateRange {
+    const firstDay = new Date(year, monthIndex, 1);
+    const lastDay = new Date(year, monthIndex + 1, 0);
 
-    return getMonthKey(previousMonth);
+    return {
+        start: formatDate(firstDay),
+        end: formatDate(lastDay),
+    };
+}
+
+function getPeriodRange(
+    period: PeriodType,
+    today: Date,
+    customRange: DateRange
+): DateRange {
+    switch (period) {
+        case "current":
+            return getMonthRange(
+                today.getFullYear(),
+                today.getMonth()
+            );
+
+        case "previous":
+            return getMonthRange(
+                today.getFullYear(),
+                today.getMonth() - 1
+            );
+
+        case "last30": {
+            const start = new Date(
+                today.getFullYear(),
+                today.getMonth(),
+                today.getDate() - 29
+            );
+
+            return {
+                start: formatDate(start),
+                end: formatDate(today),
+            };
+        }
+
+        case "custom":
+            return customRange;
+    }
+}
+
+function getPreviousMonthRange(
+    period: PeriodType,
+    today: Date
+): DateRange | null {
+    if (period === "current") {
+        return getMonthRange(
+            today.getFullYear(),
+            today.getMonth() - 1
+        );
+    }
+
+    if (period === "previous") {
+        return getMonthRange(
+            today.getFullYear(),
+            today.getMonth() - 2
+        );
+    }
+
+    return null;
+}
+
+function isDateInRange(
+    date: string,
+    range: DateRange
+): boolean {
+    return date >= range.start && date <= range.end;
+}
+
+function isValidDateString(value: string): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return false;
+    }
+
+    const [year, month, day] = value
+        .split("-")
+        .map(Number);
+
+    const parsed = new Date(year, month - 1, day);
+
+    return (
+        parsed.getFullYear() === year &&
+        parsed.getMonth() === month - 1 &&
+        parsed.getDate() === day
+    );
+}
+
+function getPeriodLabel(period: PeriodType): string {
+    switch (period) {
+        case "current":
+            return "今月";
+
+        case "previous":
+            return "先月";
+
+        case "last30":
+            return "過去30日";
+
+        case "custom":
+            return "指定期間";
+    }
 }
 
 export default function HomePage() {
@@ -45,46 +177,66 @@ export default function HomePage() {
     const { getCategoryName } = useCategories();
     const { settings } = useSettings();
 
+    const [period, setPeriod] = useState<PeriodType>("current");
+
+    const [customRange, setCustomRange] = useState<DateRange>(
+        () => {
+            const today = new Date();
+
+            return getMonthRange(
+                today.getFullYear(),
+                today.getMonth()
+            );
+        }
+    );
+
     const today = new Date();
 
-    const currentMonthKey = getMonthKey(today);
-    const previousMonthKey = getPreviousMonthKey(today);
+    const selectedRange = getPeriodRange(
+        period,
+        today,
+        customRange
+    );
 
-    // 今月の支出
-    const currentMonthExpenses = useMemo(() => {
-        return expenses.filter((expense) =>
-            expense.date.startsWith(currentMonthKey)
+    const isCustomRangeValid =
+        period !== "custom" ||
+        (
+            isValidDateString(customRange.start) &&
+            isValidDateString(customRange.end) &&
+            customRange.start <= customRange.end
         );
-    }, [expenses, currentMonthKey]);
 
-    // 前月の支出
-    const previousMonthExpenses = useMemo(() => {
+    const periodLabel = getPeriodLabel(period);
+
+    const selectedExpenses = useMemo(() => {
+        if (!isCustomRangeValid) {
+            return [];
+        }
+
         return expenses.filter((expense) =>
-            expense.date.startsWith(previousMonthKey)
+            isDateInRange(expense.date, selectedRange)
         );
-    }, [expenses, previousMonthKey]);
+    }, [
+        expenses,
+        selectedRange.start,
+        selectedRange.end,
+        isCustomRangeValid,
+    ]);
 
-    // 今月の支出合計
-    const currentMonthTotal = useMemo(() => {
-        return currentMonthExpenses.reduce(
+    // 選択期間の支出合計
+    const selectedTotal = useMemo(() => {
+        return selectedExpenses.reduce(
             (total, expense) => total + expense.amount,
             0
         );
-    }, [currentMonthExpenses]);
+    }, [selectedExpenses]);
 
-    // 前月の支出合計
-    const previousMonthTotal = useMemo(() => {
-        return previousMonthExpenses.reduce(
-            (total, expense) => total + expense.amount,
-            0
-        );
-    }, [previousMonthExpenses]);
-
-    // Aさん・Bさん別の支払額
-    const paymentTotals = useMemo(() => {
-        return currentMonthExpenses.reduce(
+    // 選択期間のメンバー別支払額
+    const paymentTotals = useMemo<MemberTotals>(() => {
+        return selectedExpenses.reduce(
             (totals, expense) => {
                 totals[expense.payer] += expense.amount;
+
                 return totals;
             },
             {
@@ -92,27 +244,69 @@ export default function HomePage() {
                 B: 0,
             }
         );
-    }, [currentMonthExpenses]);
+    }, [selectedExpenses]);
 
-    // 前月比
+    // 選択期間のメンバー別負担額
+    const burdenTotals = useMemo<MemberTotals>(() => {
+        return selectedExpenses.reduce(
+            (totals, expense) => {
+                totals.A += expense.shares.A;
+                totals.B += expense.shares.B;
+
+                return totals;
+            },
+            {
+                A: 0,
+                B: 0,
+            }
+        );
+    }, [selectedExpenses]);
+
+    // 比較対象となる前月の支出
+    const comparisonRange = getPreviousMonthRange(
+        period,
+        today
+    );
+
+    const comparisonTotal = useMemo(() => {
+        if (!comparisonRange) {
+            return null;
+        }
+
+        return expenses
+            .filter((expense) =>
+                isDateInRange(expense.date, comparisonRange)
+            )
+            .reduce(
+                (total, expense) => total + expense.amount,
+                0
+            );
+    }, [
+        expenses,
+        comparisonRange?.start,
+        comparisonRange?.end,
+    ]);
+
     const monthComparison = useMemo(() => {
-        if (previousMonthTotal === 0) {
+        if (
+            comparisonTotal === null ||
+            comparisonTotal === 0
+        ) {
             return null;
         }
 
         return (
-            ((currentMonthTotal - previousMonthTotal) /
-                previousMonthTotal) *
+            ((selectedTotal - comparisonTotal) /
+                comparisonTotal) *
             100
         );
-    }, [currentMonthTotal, previousMonthTotal]);
+    }, [selectedTotal, comparisonTotal]);
 
-    // カテゴリ別支出
-    // 固定カテゴリではなく、実際の支出データから集計する
+    // 選択期間のカテゴリ別支出
     const categoryTotals = useMemo(() => {
         const totals = new Map<string, number>();
 
-        for (const expense of currentMonthExpenses) {
+        for (const expense of selectedExpenses) {
             const current = totals.get(expense.category) ?? 0;
 
             totals.set(
@@ -129,9 +323,9 @@ export default function HomePage() {
             }))
             .filter((item) => item.amount > 0)
             .sort((a, b) => b.amount - a.amount);
-    }, [currentMonthExpenses, getCategoryName]);
+    }, [selectedExpenses, getCategoryName]);
 
-    // 最近の支出（全期間から直近5件）
+    // 最近の支出は期間選択の影響を受けない
     const recentExpenses = useMemo(() => {
         return [...expenses]
             .sort(
@@ -156,7 +350,10 @@ export default function HomePage() {
     if (loadError) {
         return (
             <div className="py-12 text-center">
-                <p role="alert" className="text-sm text-red-300">
+                <p
+                    role="alert"
+                    className="text-sm text-red-300"
+                >
                     {loadError}
                 </p>
             </div>
@@ -165,23 +362,149 @@ export default function HomePage() {
 
     return (
         <div className="space-y-5">
-            {/* 今月の支出 */}
+            {/* 集計期間の選択 */}
+            <GlassCard>
+                <div className="mb-4 flex items-center gap-2">
+                    <CalendarDays
+                        size={19}
+                        className="text-gold"
+                    />
+
+                    <h2 className="text-lg text-gold">
+                        集計期間
+                    </h2>
+                </div>
+
+                <div
+                    role="group"
+                    aria-label="集計期間"
+                    className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+                >
+                    {PERIOD_OPTIONS.map((option) => {
+                        const isSelected =
+                            period === option.value;
+
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                aria-pressed={isSelected}
+                                onClick={() =>
+                                    setPeriod(option.value)
+                                }
+                                className={`rounded-xl border px-3 py-3 text-sm transition ${isSelected
+                                        ? "border-gold/70 bg-gold/15 text-gold"
+                                        : "border-white/10 bg-night/40 text-mist hover:border-gold/30 hover:text-moon"
+                                    }`}
+                            >
+                                {option.label}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {period === "custom" && (
+                    <div className="mt-5 space-y-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                                <label
+                                    htmlFor="home-start-date"
+                                    className="mb-2 block text-xs text-mist"
+                                >
+                                    開始日
+                                </label>
+
+                                <input
+                                    id="home-start-date"
+                                    type="date"
+                                    value={customRange.start}
+                                    max={customRange.end}
+                                    onChange={(event) =>
+                                        setCustomRange(
+                                            (current) => ({
+                                                ...current,
+                                                start: event.target.value,
+                                            })
+                                        )
+                                    }
+                                    className="w-full min-w-0 rounded-xl border border-gold/20 bg-night/60 px-3 py-3 text-sm text-moon outline-none transition focus:border-gold/70"
+                                />
+                            </div>
+
+                            <div>
+                                <label
+                                    htmlFor="home-end-date"
+                                    className="mb-2 block text-xs text-mist"
+                                >
+                                    終了日
+                                </label>
+
+                                <input
+                                    id="home-end-date"
+                                    type="date"
+                                    value={customRange.end}
+                                    min={customRange.start}
+                                    onChange={(event) =>
+                                        setCustomRange(
+                                            (current) => ({
+                                                ...current,
+                                                end: event.target.value,
+                                            })
+                                        )
+                                    }
+                                    className="w-full min-w-0 rounded-xl border border-gold/20 bg-night/60 px-3 py-3 text-sm text-moon outline-none transition focus:border-gold/70"
+                                />
+                            </div>
+                        </div>
+
+                        {!isCustomRangeValid && (
+                            <p
+                                role="alert"
+                                className="text-sm text-red-300"
+                            >
+                                開始日と終了日を正しく指定してください。
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                <p className="mt-4 text-xs text-mist">
+                    集計対象：
+                    {selectedRange.start.replaceAll("-", "/")}
+                    {" 〜 "}
+                    {selectedRange.end.replaceAll("-", "/")}
+                </p>
+            </GlassCard>
+
+            {/* 選択期間の支出 */}
             <GlassCard>
                 <p className="text-sm text-mist">
-                    今月の支出
+                    {periodLabel}の支出
                 </p>
 
                 <p className="mt-3 text-4xl font-semibold tracking-wide text-moon">
-                    {formatYen(currentMonthTotal)}
+                    {formatYen(selectedTotal)}
+                </p>
+
+                <p className="mt-2 text-xs text-mist">
+                    {selectedExpenses.length}件の支出
                 </p>
 
                 <div className="mt-4 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent" />
 
-                {/* Aさん・Bさん別の支払額 */}
-                <div className="mt-5 grid grid-cols-2 gap-3">
+                {/* メンバー別支払額 */}
+                <h3 className="mt-5 text-sm text-gold">
+                    支払額
+                </h3>
+
+                <p className="mt-1 text-xs text-mist">
+                    実際に支払いを行った金額
+                </p>
+
+                <div className="mt-3 grid grid-cols-2 gap-3">
                     <div className="rounded-xl border border-gold/20 bg-night/50 p-4">
                         <p className="truncate text-xs text-mist">
-                            {settings.memberNames.A}の支払額
+                            {settings.memberNames.A}
                         </p>
 
                         <p className="mt-2 break-all text-lg font-semibold text-moon">
@@ -191,7 +514,7 @@ export default function HomePage() {
 
                     <div className="rounded-xl border border-gold/20 bg-night/50 p-4">
                         <p className="truncate text-xs text-mist">
-                            {settings.memberNames.B}の支払額
+                            {settings.memberNames.B}
                         </p>
 
                         <p className="mt-2 break-all text-lg font-semibold text-moon">
@@ -200,27 +523,60 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                {/* 前月比 */}
-                <div className="mt-5">
-                    {monthComparison === null ? (
-                        <p className="text-sm text-mist">
-                            前月の支出データがありません
+                {/* メンバー別負担額 */}
+                <h3 className="mt-6 text-sm text-gold">
+                    負担額
+                </h3>
+
+                <p className="mt-1 text-xs text-mist">
+                    支出の負担内訳に基づく金額
+                </p>
+
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-gold/20 bg-night/50 p-4">
+                        <p className="truncate text-xs text-mist">
+                            {settings.memberNames.A}
                         </p>
-                    ) : (
-                        <p
-                            className={`text-sm ${monthComparison > 0
-                                    ? "text-red-300"
-                                    : monthComparison < 0
-                                        ? "text-cyan-glow"
-                                        : "text-mist"
-                                }`}
-                        >
-                            前月比{" "}
-                            {monthComparison > 0 ? "+" : ""}
-                            {monthComparison.toFixed(1)}%
+
+                        <p className="mt-2 break-all text-lg font-semibold text-moon">
+                            {formatYen(burdenTotals.A)}
                         </p>
-                    )}
+                    </div>
+
+                    <div className="rounded-xl border border-gold/20 bg-night/50 p-4">
+                        <p className="truncate text-xs text-mist">
+                            {settings.memberNames.B}
+                        </p>
+
+                        <p className="mt-2 break-all text-lg font-semibold text-moon">
+                            {formatYen(burdenTotals.B)}
+                        </p>
+                    </div>
                 </div>
+
+                {/* 前月比 */}
+                {comparisonRange && (
+                    <div className="mt-5 border-t border-white/10 pt-4">
+                        {monthComparison === null ? (
+                            <p className="text-sm text-mist">
+                                比較対象月の支出データがありません
+                            </p>
+                        ) : (
+                            <p
+                                className={`text-sm ${monthComparison > 0
+                                        ? "text-red-300"
+                                        : monthComparison < 0
+                                            ? "text-cyan-glow"
+                                            : "text-mist"
+                                    }`}
+                            >
+                                前月比{" "}
+                                {monthComparison > 0 ? "+" : ""}
+                                {monthComparison.toFixed(1)}%
+                            </p>
+                        )}
+                    </div>
+                )}
             </GlassCard>
 
             {/* カテゴリ別支出 */}
@@ -231,24 +587,50 @@ export default function HomePage() {
 
                 {categoryTotals.length === 0 ? (
                     <p className="py-6 text-center text-sm text-mist">
-                        今月の支出はまだありません
+                        {isCustomRangeValid
+                            ? "選択期間の支出はまだありません"
+                            : "集計期間を正しく指定してください"}
                     </p>
                 ) : (
                     <div>
-                        {categoryTotals.map((item) => (
-                            <div
-                                key={item.category}
-                                className="flex justify-between gap-4 border-b border-white/10 py-3 last:border-0"
-                            >
-                                <span className="text-moon">
-                                    {item.name}
-                                </span>
+                        {categoryTotals.map((item) => {
+                            const percentage =
+                                selectedTotal > 0
+                                    ? (item.amount / selectedTotal) * 100
+                                    : 0;
 
-                                <span className="font-medium text-moon">
-                                    {formatYen(item.amount)}
-                                </span>
-                            </div>
-                        ))}
+                            return (
+                                <div
+                                    key={item.category}
+                                    className="border-b border-white/10 py-3 last:border-0"
+                                >
+                                    <div className="flex items-center justify-between gap-4">
+                                        <span className="text-sm text-moon">
+                                            {item.name}
+                                        </span>
+
+                                        <span className="shrink-0 font-medium text-moon">
+                                            {formatYen(item.amount)}
+                                        </span>
+                                    </div>
+
+                                    <div className="mt-2 flex items-center gap-3">
+                                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+                                            <div
+                                                className="h-full rounded-full bg-gold/70 transition-all"
+                                                style={{
+                                                    width: `${percentage}%`,
+                                                }}
+                                            />
+                                        </div>
+
+                                        <span className="w-12 text-right text-xs text-mist">
+                                            {percentage.toFixed(1)}%
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </GlassCard>
@@ -297,12 +679,18 @@ export default function HomePage() {
                                     </p>
 
                                     <p className="text-sm text-moon">
-                                        {getCategoryName(expense.category)}
+                                        {getCategoryName(
+                                            expense.category
+                                        )}
                                     </p>
 
                                     <p className="truncate text-xs text-mist">
                                         支払者：
-                                        {settings.memberNames[expense.payer]}
+                                        {
+                                            settings.memberNames[
+                                            expense.payer
+                                            ]
+                                        }
                                     </p>
                                 </div>
 
@@ -323,7 +711,10 @@ export default function HomePage() {
             </GlassCard>
 
             {/* 支出登録ボタン */}
-            <Link to="/expenses/new" className="block">
+            <Link
+                to="/expenses/new"
+                className="block"
+            >
                 <GoldButton className="pointer-events-none">
                     <Plus size={20} />
                     支出を登録する
